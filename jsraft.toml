@@ -1,0 +1,27 @@
+name = "my-project"
+version = "0.1.0"
+
+[dependencies]
+# Add your dependencies here
+
+[dev_dependencies]
+# Add your dev dependencies here
+
+[build]
+entry = ["src/index.js"]
+outdir = "dist"
+format = "esm"
+minify = false
+sourcemap = true
+
+[lint]
+categories = ["correctness", "suspicious"]
+max_warnings = 100
+
+[fmt]
+print_width = 80
+tab_width = 2
+use_tabs = false
+semicolons = true
+single_quotes = false
+trailing_commas = true
