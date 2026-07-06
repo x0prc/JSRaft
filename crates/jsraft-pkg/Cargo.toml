@@ -1,0 +1,24 @@
+[package]
+name = "jsraft-pkg"
+version.workspace = true
+edition.workspace = true
+description = "JavaScript package manager"
+
+[dependencies]
+jsraft-core = { path = "../jsraft-core" }
+oxc_resolver = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+reqwest = { workspace = true }
+tokio = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+flate2 = { workspace = true }
+tar = { workspace = true }
+dirs = { workspace = true }
+toml = { workspace = true }
+glob = { workspace = true }
+regex = { workspace = true }

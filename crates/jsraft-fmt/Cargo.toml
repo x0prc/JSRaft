@@ -1,0 +1,17 @@
+[package]
+name = "jsraft-fmt"
+version.workspace = true
+edition.workspace = true
+description = "JavaScript/TypeScript formatter"
+
+[dependencies]
+jsraft-core = { path = "../jsraft-core" }
+oxc_parser = { workspace = true }
+oxc_ast = { workspace = true }
+oxc_span = { workspace = true }
+oxc_codegen = { workspace = true }
+serde = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+glob = { workspace = true }
