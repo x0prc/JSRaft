@@ -1,0 +1,80 @@
+[workspace]
+members = [
+    "crates/jsraft-core",
+    "crates/jsraft-bundler",
+    "crates/jsraft-lint",
+    "crates/jsraft-fmt",
+    "crates/jsraft-pkg",
+    "crates/jsraft-cli",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/c0ldheat/jsraft"
+description = "A minimal JavaScript runtime + compiler toolchain + package ecosystem"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# JS Engine
+rquickjs = { version = "0.8", features = ["full-async", "macro", "rust-alloc"] }
+
+# Oxc toolchain (parser, transformer, resolver, codegen)
+oxc_parser = "0.138"
+oxc_ast = "0.138"
+oxc_span = "0.138"
+oxc_resolver = "11"
+oxc_codegen = "0.138"
+oxc_transformer = "0.138"
+oxc_index = "5"
+oxc_sourcemap = "8"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# HTTP
+reqwest = { version = "0.12", features = ["json", "rustls-tls", "blocking"], default-features = false }
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+clap_complete = "4"
+anyhow = "1"
+thiserror = "2"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# File watching
+notify = "7"
+
+# Hashing
+sha2 = "0.10"
+hex = "0.4"
+
+# Temp files
+tempfile = "3"
+
+# Compression
+flate2 = "1"
+tar = "0.4"
+zip = "2"
+
+# Misc
+dirs = "6"
+which = "7"
+glob = "0.3"
+regex = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
