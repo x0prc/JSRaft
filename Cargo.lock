@@ -1137,6 +1137,7 @@ dependencies = [
  "clap",
  "clap_complete",
  "dirs",
+ "glob",
  "jsraft-bundler",
  "jsraft-core",
  "jsraft-fmt",
@@ -1189,6 +1190,7 @@ dependencies = [
  "oxc_span",
  "serde",
  "thiserror",
+ "toml",
  "tracing",
 ]
 
@@ -1204,7 +1206,9 @@ dependencies = [
  "oxc_span",
  "regex",
  "serde",
+ "serde_json",
  "thiserror",
+ "toml",
  "tracing",
 ]
 

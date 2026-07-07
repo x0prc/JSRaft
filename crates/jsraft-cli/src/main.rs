@@ -117,6 +117,10 @@ async fn main() -> Result<()> {
             println!("  jsraft run src/index.js");
         }
 
+        cmd::Commands::Repl => {
+            cmd::repl::execute().await?;
+        }
+
         cmd::Commands::RunScript { script } => {
             // Load config and find script
             let root = std::env::current_dir()?;
@@ -126,7 +130,7 @@ async fn main() -> Result<()> {
                 anyhow::bail!("No jsraft.toml found");
             }
 
-            let content = std::fs::read_to_string(&config_path)?;
+            let _content = std::fs::read_to_string(&config_path)?;
             // For MVP, just print the script command
             println!("Running script: {script}");
             // TODO: parse and execute scripts from config

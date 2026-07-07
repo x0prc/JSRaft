@@ -1,10 +1,6 @@
 use crate::config::BundleConfig;
 use anyhow::{Context, Result};
-use oxc_allocator::Allocator;
-use oxc_codegen::CodeGenerator;
-use oxc_parser::Parser;
 use oxc_resolver::{ResolveOptions, Resolver};
-use oxc_span::SourceType;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use tracing::{debug, info};
@@ -17,7 +13,6 @@ use tracing::{debug, info};
 pub struct Bundler {
     config: BundleConfig,
     resolver: Resolver,
-    allocator: Allocator,
 }
 
 /// Result of a bundle operation.
@@ -60,7 +55,6 @@ impl Bundler {
         Self {
             config,
             resolver,
-            allocator: Allocator::default(),
         }
     }
 
@@ -80,34 +74,11 @@ impl Bundler {
 
         let files_included = modules.len();
 
-        // Parse and transform each module
+        // MVP: concatenate resolved modules in dependency order.
         let mut bundled_parts: Vec<String> = Vec::new();
 
         for (path, source) in &modules {
             debug!("Processing module: {}", path.display());
-
-            let source_type = self.detect_source_type(path);
-            let ret = Parser::new(&self.allocator, source, source_type)
-                .parse();
-
-            if !ret.errors.is_empty() {
-                let errors: Vec<String> = ret
-                    .errors
-                    .iter()
-                    .map(|e| format!("{:?}", e))
-                    .collect();
-                anyhow::bail!(
-                    "Parse errors in {}: {}",
-                    path.display(),
-                    errors.join(", ")
-                );
-            }
-
-            let program = ret.program;
-            let mut codegen = CodeGenerator::new();
-            let output = codegen
-                .build(&program)
-                .code;
 
             // Wrap in a module scope for tree shaking
             let rel_path = path
@@ -116,7 +87,7 @@ impl Bundler {
                 .to_string_lossy();
 
             bundled_parts.push(format!(
-                "// Module: {rel_path}\n{output}"
+                "// Module: {rel_path}\n{source}"
             ));
         }
 
@@ -212,9 +183,9 @@ impl Bundler {
                 &import_path,
             );
 
-            if let Some(resolved_path) = resolved {
+            if let Ok(resolved_path) = resolved {
                 let resolved_path = resolved_path.full_path();
-                self.collect_modules(resolved_path, root, modules, visited)?;
+                self.collect_modules(&resolved_path, root, modules, visited)?;
             }
         }
 
@@ -272,17 +243,6 @@ impl Bundler {
         }
 
         imports
-    }
-
-    fn detect_source_type(&self, path: &Path) -> SourceType {
-        match path.extension().and_then(|e| e.to_str()) {
-            Some("ts") => SourceType::TypeScript,
-            Some("tsx") => SourceType::TypeScript | SourceType::Jsx,
-            Some("jsx") => SourceType::Jsx,
-            Some("mjs") => SourceType::Module,
-            Some("cjs") => SourceType::Module,
-            _ => SourceType::Module,
-        }
     }
 
     fn minify(&self, source: &str) -> Result<String> {

@@ -3,7 +3,7 @@ pub mod module;
 pub mod ops;
 pub mod runtime;
 
-pub use runtime::{JsRuntime, RuntimeConfig};
+pub use runtime::{JsRuntime, ReplSession, RuntimeConfig};
 pub use module::ModuleLoader;
 
 use thiserror::Error;

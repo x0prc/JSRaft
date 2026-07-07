@@ -1,6 +1,5 @@
 use anyhow::Result;
 use jsraft_bundler::{BundleConfig, Bundler};
-use std::path::Path;
 
 pub async fn execute(
     entry: Option<&str>,

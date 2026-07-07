@@ -2,6 +2,7 @@ pub mod build;
 pub mod fmt;
 pub mod install;
 pub mod lint;
+pub mod repl;
 pub mod run;
 
 use clap::{Parser, Subcommand};
@@ -124,6 +125,9 @@ pub enum Commands {
         /// Project name
         name: Option<String>,
     },
+
+    /// Start an interactive JavaScript REPL
+    Repl,
 
     /// Run a script from package.json/jsraft.toml
     RunScript {

@@ -4,7 +4,6 @@ pub use config::FmtConfig;
 
 use anyhow::{Context, Result};
 use std::path::Path;
-use tracing::info;
 
 /// The JSRaft formatter.
 ///

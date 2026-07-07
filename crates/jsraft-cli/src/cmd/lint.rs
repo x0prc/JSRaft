@@ -1,15 +1,15 @@
 use anyhow::Result;
-use jsraft_lint::{LintConfig, LinterEngine, LintResult};
+use jsraft_lint::{LintConfig, LinterEngine};
 use std::path::Path;
 use glob::glob;
 
-pub async fn execute(paths: &[Path], fix: bool, max_warnings: usize) -> Result<()> {
+pub async fn execute(paths: &[&Path], _fix: bool, _max_warnings: usize) -> Result<()> {
     let config = LintConfig::default();
     let linter = LinterEngine::new(config);
 
     let mut all_files = Vec::new();
 
-    for path in paths {
+    for path in paths.iter().copied() {
         if path.is_dir() {
             // Glob for JS/TS files
             let pattern = format!("{}/**/*.{{js,jsx,ts,tsx,mjs,cjs}}", path.display());

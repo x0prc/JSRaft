@@ -1,6 +1,5 @@
 use anyhow::Result;
 use jsraft_pkg::PackageManager;
-use std::path::PathBuf;
 
 pub async fn execute(package: Option<&str>, version: Option<&str>, dev: bool) -> Result<()> {
     let root = std::env::current_dir()?;

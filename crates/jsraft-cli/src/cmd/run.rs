@@ -2,7 +2,7 @@ use anyhow::Result;
 use jsraft_core::{JsRuntime, RuntimeConfig};
 use std::path::Path;
 
-pub async fn execute(file: &Path, args: &[String]) -> Result<()> {
+pub async fn execute(file: &Path, _args: &[String]) -> Result<()> {
     if !file.exists() {
         anyhow::bail!("File not found: {}", file.display());
     }

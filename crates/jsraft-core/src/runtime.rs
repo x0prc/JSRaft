@@ -1,6 +1,6 @@
 use crate::module::ModuleLoader;
 use crate::Result;
-use rquickjs::{AsyncContext, AsyncRuntime, Module};
+use rquickjs::{AsyncContext, AsyncRuntime, Value};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tracing::info;
@@ -40,6 +40,12 @@ pub struct JsRuntime {
     module_loader: Arc<ModuleLoader>,
 }
 
+/// A persistent JavaScript context for interactive evaluation.
+pub struct ReplSession {
+    _runtime: AsyncRuntime,
+    context: AsyncContext,
+}
+
 impl JsRuntime {
     /// Create a new runtime with the given config.
     pub fn new(config: RuntimeConfig) -> Self {
@@ -71,22 +77,21 @@ impl JsRuntime {
             crate::extensions::process::register(&ctx)?;
             crate::extensions::timers::register(&ctx)?;
 
-            // Load and execute the entry file
-            let path_str = path.to_string_lossy().to_string();
+            // Load and execute the entry file.
             let source = std::fs::read_to_string(path)
                 .map_err(|e| crate::JsRaftError::Io(e))?;
 
-            let module = Module::declare(ctx, path_str.as_str(), source.as_bytes())
+            let _: Value = ctx.eval(source.as_bytes())
                 .map_err(|e| crate::JsRaftError::JsError(format!("{e}")))?;
 
-            Ok(())
+            Ok::<(), crate::JsRaftError>(())
         }).await.map_err(|e| crate::JsRaftError::Runtime(format!("Context error: {e}")))?;
 
         Ok(())
     }
 
     /// Evaluate a JavaScript string.
-    pub async fn eval(&self, code: &str, filename: &str) -> Result<String> {
+    pub async fn eval(&self, code: &str, _filename: &str) -> Result<String> {
         let rt = AsyncRuntime::new().map_err(|e| {
             crate::JsRaftError::Runtime(format!("Failed to create runtime: {e}"))
         })?;
@@ -98,16 +103,13 @@ impl JsRuntime {
         let result = ctx.with(|ctx| {
             crate::extensions::console::register(&ctx)?;
 
-            let val: rquickjs::Value = ctx
+            let val: Value = ctx
                 .eval(code.as_bytes())
                 .map_err(|e| crate::JsRaftError::JsError(format!("{e}")))?;
 
-            let result = val
-                .as_string()
-                .and_then(|s| s.to_string().ok())
-                .unwrap_or_default();
+            let result = value_to_string(&val);
 
-            Ok(result)
+            Ok::<String, crate::JsRaftError>(result)
         }).await.map_err(|e| crate::JsRaftError::Runtime(format!("Context error: {e}")))?;
 
         Ok(result)
@@ -117,7 +119,7 @@ impl JsRuntime {
     pub async fn eval_as<T: for<'js> rquickjs::FromJs<'js>>(
         &self,
         code: &str,
-        filename: &str,
+        _filename: &str,
     ) -> Result<T> {
         let rt = AsyncRuntime::new().map_err(|e| {
             crate::JsRaftError::Runtime(format!("Failed to create runtime: {e}"))
@@ -130,8 +132,8 @@ impl JsRuntime {
         let result = ctx.with(|ctx| {
             crate::extensions::console::register(&ctx)?;
 
-            let val: rquickjs::Value = ctx
-                .eval(code.as_bytes())
+                let val: Value = ctx
+                    .eval(code.as_bytes())
                 .map_err(|e| crate::JsRaftError::JsError(format!("{e}")))?;
 
             T::from_js(&ctx, val)
@@ -150,6 +152,65 @@ impl JsRuntime {
     pub fn config(&self) -> &RuntimeConfig {
         &self.config
     }
+}
+
+impl ReplSession {
+    /// Create a persistent REPL session with built-in APIs registered once.
+    pub async fn new() -> Result<Self> {
+        let runtime = AsyncRuntime::new().map_err(|e| {
+            crate::JsRaftError::Runtime(format!("Failed to create runtime: {e}"))
+        })?;
+
+        let context = AsyncContext::full(&runtime).await.map_err(|e| {
+            crate::JsRaftError::Runtime(format!("Failed to create context: {e}"))
+        })?;
+
+        context.with(|ctx| {
+            crate::extensions::console::register(&ctx)?;
+            crate::extensions::fs::register(&ctx)?;
+            crate::extensions::net::register(&ctx)?;
+            crate::extensions::path::register(&ctx)?;
+            crate::extensions::process::register(&ctx)?;
+            crate::extensions::timers::register(&ctx)?;
+            Ok::<(), crate::JsRaftError>(())
+        }).await.map_err(|e| crate::JsRaftError::Runtime(format!("Context error: {e}")))?;
+
+        Ok(Self {
+            _runtime: runtime,
+            context,
+        })
+    }
+
+    /// Evaluate a single input while preserving global context state.
+    pub async fn eval(&self, code: &str) -> Result<String> {
+        let result = self.context.with(|ctx| {
+            let val: Value = ctx
+                .eval(code.as_bytes())
+                .map_err(|e| crate::JsRaftError::JsError(format!("{e}")))?;
+            Ok::<String, crate::JsRaftError>(value_to_string(&val))
+        }).await.map_err(|e| crate::JsRaftError::Runtime(format!("Context error: {e}")))?;
+
+        Ok(result)
+    }
+}
+
+fn value_to_string(value: &Value<'_>) -> String {
+    if value.is_undefined() {
+        return String::new();
+    }
+    if value.is_null() {
+        return "null".into();
+    }
+    if let Some(string) = value.as_string().and_then(|s| s.to_string().ok()) {
+        return string;
+    }
+    if let Some(number) = value.as_number() {
+        return number.to_string();
+    }
+    if let Some(boolean) = value.as_bool() {
+        return boolean.to_string();
+    }
+    "[object]".into()
 }
 
 /// Run a file directly (convenience function).

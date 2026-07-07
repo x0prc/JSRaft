@@ -6,20 +6,19 @@ pub use rules::{LintResult, LintError, LintWarning};
 
 use anyhow::{Context, Result};
 use std::path::Path;
-use tracing::info;
 
 /// The JSRaft linter.
 ///
 /// For MVP, uses regex-based rules.
 /// In production, integrate oxc_linter when available.
 pub struct LinterEngine {
-    config: LintConfig,
+    _config: LintConfig,
 }
 
 impl LinterEngine {
     /// Create a new linter with the given config.
     pub fn new(config: LintConfig) -> Self {
-        Self { config }
+        Self { _config: config }
     }
 
     /// Lint a file and return warnings/errors.
@@ -31,7 +30,7 @@ impl LinterEngine {
     }
 
     /// Lint source code directly.
-    pub fn lint_source(&self, source: &str, path: Option<&Path>) -> Result<LintResult> {
+    pub fn lint_source(&self, source: &str, _path: Option<&Path>) -> Result<LintResult> {
         let mut errors = Vec::new();
         let mut warnings = Vec::new();
 

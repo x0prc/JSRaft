@@ -1,41 +1,15 @@
-use oxc_resolver::{ResolveOptions, Resolver};
 use std::path::{Path, PathBuf};
 use tracing::debug;
 
 /// Module resolver and loader.
 pub struct ModuleLoader {
     root: PathBuf,
-    resolver: Resolver,
 }
 
 impl ModuleLoader {
     /// Create a new module loader rooted at the given directory.
     pub fn new(root: PathBuf) -> Self {
-        let resolver = Resolver::new(ResolveOptions {
-            extensions: vec![
-                ".js".into(),
-                ".jsx".into(),
-                ".ts".into(),
-                ".tsx".into(),
-                ".mjs".into(),
-                ".cjs".into(),
-                ".json".into(),
-            ],
-            main_fields: vec![
-                "main".into(),
-                "module".into(),
-                "types".into(),
-            ],
-            condition_names: vec![
-                "import".into(),
-                "require".into(),
-                "node".into(),
-                "default".into(),
-            ],
-            ..Default::default()
-        });
-
-        Self { root, resolver }
+        Self { root }
     }
 
     /// Resolve a module specifier to a file path.

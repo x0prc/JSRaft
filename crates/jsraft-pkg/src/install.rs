@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -153,10 +153,11 @@ impl PackageManager {
         let resolved_version = self.resolve_version(&package, version)?;
 
         // Download tarball
-        let tarball_url = package
-            .dist
-            .tarball
-            .as_str();
+        let version_meta = package
+            .versions
+            .get(&resolved_version)
+            .ok_or_else(|| anyhow::anyhow!("Missing metadata for {name}@{resolved_version}"))?;
+        let tarball_url = version_meta.dist.tarball.as_str();
 
         let tarball_path = self.cache_dir.join(format!("{name}@{resolved_version}.tgz"));
 
