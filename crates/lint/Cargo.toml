@@ -5,7 +5,7 @@ edition.workspace = true
 description = "JavaScript/TypeScript linter"
 
 [dependencies]
-jsraft-core = { path = "../jsraft-core" }
+jsraft-core = { path = "../core" }
 oxc_parser = { workspace = true }
 oxc_ast = { workspace = true }
 oxc_span = { workspace = true }

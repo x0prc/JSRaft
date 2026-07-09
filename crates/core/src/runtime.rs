@@ -1,4 +1,4 @@
-use crate::module::ModuleLoader;
+use crate::{read_text_mmap, module::ModuleLoader};
 use crate::Result;
 use rquickjs::{AsyncContext, AsyncRuntime, Value};
 use std::path::{Path, PathBuf};
@@ -19,6 +19,16 @@ pub struct RuntimeConfig {
     pub max_stack_size: usize,
     /// Memory limit in bytes (0 = unlimited).
     pub memory_limit: usize,
+    /// JavaScript engine backend.
+    pub engine: EngineKind,
+}
+
+/// JavaScript engine backend selection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EngineKind {
+    QuickJs,
+    #[cfg(feature = "v8")]
+    V8,
 }
 
 impl Default for RuntimeConfig {
@@ -30,6 +40,7 @@ impl Default for RuntimeConfig {
             strict: true,
             max_stack_size: 512 * 1024,       // 512KB
             memory_limit: 128 * 1024 * 1024,  // 128MB
+            engine: EngineKind::QuickJs,
         }
     }
 }
@@ -78,7 +89,7 @@ impl JsRuntime {
             crate::extensions::timers::register(&ctx)?;
 
             // Load and execute the entry file.
-            let source = std::fs::read_to_string(path)
+            let source = read_text_mmap(path)
                 .map_err(|e| crate::JsRaftError::Io(e))?;
 
             let _: Value = ctx.eval(source.as_bytes())

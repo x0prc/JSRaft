@@ -5,7 +5,7 @@ edition.workspace = true
 description = "JavaScript package manager"
 
 [dependencies]
-jsraft-core = { path = "../jsraft-core" }
+jsraft-core = { path = "../core" }
 oxc_resolver = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

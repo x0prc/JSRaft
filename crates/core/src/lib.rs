@@ -1,10 +1,12 @@
 pub mod extensions;
+pub mod io;
 pub mod module;
 pub mod ops;
 pub mod runtime;
 
 pub use runtime::{JsRuntime, ReplSession, RuntimeConfig};
 pub use module::ModuleLoader;
+pub use io::read_text_mmap;
 
 use thiserror::Error;
 

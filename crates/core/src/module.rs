@@ -1,3 +1,4 @@
+use crate::read_text_mmap;
 use std::path::{Path, PathBuf};
 use tracing::debug;
 
@@ -42,7 +43,7 @@ impl ModuleLoader {
 
     /// Read a module's source code.
     pub fn read_module(&self, path: &Path) -> std::io::Result<String> {
-        std::fs::read_to_string(path)
+        read_text_mmap(path)
     }
 
     /// Resolve and read a module in one step.

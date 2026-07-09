@@ -10,11 +10,11 @@ name = "jsraft"
 path = "src/main.rs"
 
 [dependencies]
-jsraft-core = { path = "../jsraft-core" }
-jsraft-bundler = { path = "../jsraft-bundler" }
-jsraft-lint = { path = "../jsraft-lint" }
-jsraft-fmt = { path = "../jsraft-fmt" }
-jsraft-pkg = { path = "../jsraft-pkg" }
+jsraft-core = { path = "../core" }
+jsraft-bundler = { path = "../bundler" }
+jsraft-lint = { path = "../lint" }
+jsraft-fmt = { path = "../fmt" }
+jsraft-pkg = { path = "../pkg" }
 clap = { workspace = true }
 clap_complete = { workspace = true }
 anyhow = { workspace = true }

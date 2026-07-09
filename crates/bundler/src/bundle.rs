@@ -1,7 +1,9 @@
 use crate::config::BundleConfig;
 use anyhow::{Context, Result};
+use jsraft_core::read_text_mmap;
 use oxc_resolver::{ResolveOptions, Resolver};
-use std::collections::{HashMap, HashSet};
+use serde_json::json;
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 use tracing::{debug, info};
 
@@ -63,7 +65,7 @@ impl Bundler {
         let start = std::time::Instant::now();
         info!("Bundling from root: {}", root.display());
 
-        let mut modules: HashMap<PathBuf, String> = HashMap::new();
+        let mut modules: BTreeMap<PathBuf, String> = BTreeMap::new();
         let mut visited: HashSet<PathBuf> = HashSet::new();
 
         // Resolve and collect all modules starting from entry points
@@ -101,6 +103,12 @@ impl Bundler {
             combined
         };
 
+        let source_map = if self.config.sourcemap {
+            Some(self.source_map(root, &modules)?)
+        } else {
+            None
+        };
+
         let stats = BundleStats {
             files_included,
             total_size: final_code.len(),
@@ -116,7 +124,7 @@ impl Bundler {
 
         Ok(BundleResult {
             code: final_code,
-            source_map: None, // TODO: implement source maps
+            source_map,
             stats,
         })
     }
@@ -139,12 +147,20 @@ impl Bundler {
             .unwrap_or("bundle.js");
 
         let output_file = out_path.join(filename);
-        std::fs::write(&output_file, &result.code)?;
+
+        let mut code = result.code.clone();
 
         if let Some(ref source_map) = result.source_map {
             let sm_path = output_file.with_extension("js.map");
+            if let Some(sm_name) = sm_path.file_name().and_then(|name| name.to_str()) {
+                code.push_str("\n//# sourceMappingURL=");
+                code.push_str(sm_name);
+                code.push('\n');
+            }
             std::fs::write(sm_path, source_map)?;
         }
+
+        std::fs::write(&output_file, code)?;
 
         Ok(output_file)
     }
@@ -153,7 +169,7 @@ impl Bundler {
         &self,
         path: &Path,
         root: &Path,
-        modules: &mut HashMap<PathBuf, String>,
+        modules: &mut BTreeMap<PathBuf, String>,
         visited: &mut HashSet<PathBuf>,
     ) -> Result<()> {
         let canonical = path
@@ -165,7 +181,7 @@ impl Bundler {
         }
         visited.insert(canonical.clone());
 
-        let source = std::fs::read_to_string(path)
+        let source = read_text_mmap(path)
             .with_context(|| format!("Failed to read: {}", path.display()))?;
 
         modules.insert(canonical.clone(), source.clone());
@@ -202,14 +218,8 @@ impl Bundler {
 
             // import ... from '...'
             if trimmed.starts_with("import ") {
-                if let Some(start) = trimmed.rfind('\'') {
-                    if let Some(end) = trimmed[start + 1..].find('\'') {
-                        imports.push(trimmed[start + 1..start + 1 + end].to_string());
-                    }
-                } else if let Some(start) = trimmed.rfind('"') {
-                    if let Some(end) = trimmed[start + 1..].find('"') {
-                        imports.push(trimmed[start + 1..start + 1 + end].to_string());
-                    }
+                if let Some(import) = quoted_specifier(trimmed) {
+                    imports.push(import);
                 }
             }
 
@@ -230,19 +240,38 @@ impl Bundler {
 
             // export ... from '...'
             if trimmed.starts_with("export ") {
-                if let Some(start) = trimmed.rfind('\'') {
-                    if let Some(end) = trimmed[start + 1..].find('\'') {
-                        imports.push(trimmed[start + 1..start + 1 + end].to_string());
-                    }
-                } else if let Some(start) = trimmed.rfind('"') {
-                    if let Some(end) = trimmed[start + 1..].find('"') {
-                        imports.push(trimmed[start + 1..start + 1 + end].to_string());
-                    }
+                if let Some(import) = quoted_specifier(trimmed) {
+                    imports.push(import);
                 }
             }
         }
 
         imports
+    }
+
+    fn source_map(&self, root: &Path, modules: &BTreeMap<PathBuf, String>) -> Result<String> {
+        let filename = self.config.outfile.as_deref().unwrap_or("bundle.js");
+        let sources: Vec<String> = modules
+            .keys()
+            .map(|path| {
+                path.strip_prefix(root)
+                    .unwrap_or(path)
+                    .to_string_lossy()
+                    .replace('\\', "/")
+            })
+            .collect();
+        let sources_content: Vec<&str> = modules.values().map(String::as_str).collect();
+
+        let source_map = json!({
+            "version": 3,
+            "file": filename,
+            "sources": sources,
+            "sourcesContent": sources_content,
+            "names": [],
+            "mappings": ""
+        });
+
+        Ok(serde_json::to_string_pretty(&source_map)?)
     }
 
     fn minify(&self, source: &str) -> Result<String> {
@@ -302,4 +331,17 @@ impl Bundler {
 
         Ok(result)
     }
+}
+
+fn quoted_specifier(input: &str) -> Option<String> {
+    for quote in ['\'', '"'] {
+        if let Some(start) = input.find(quote) {
+            let rest = &input[start + 1..];
+            if let Some(end) = rest.find(quote) {
+                return Some(rest[..end].to_string());
+            }
+        }
+    }
+
+    None
 }
