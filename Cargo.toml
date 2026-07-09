@@ -1,11 +1,11 @@
 [workspace]
 members = [
-    "crates/jsraft-core",
-    "crates/jsraft-bundler",
-    "crates/jsraft-lint",
-    "crates/jsraft-fmt",
-    "crates/jsraft-pkg",
-    "crates/jsraft-cli",
+    "crates/core",
+    "crates/bundler",
+    "crates/lint",
+    "crates/fmt",
+    "crates/pkg",
+    "crates/cli",
 ]
 resolver = "2"
 
@@ -71,6 +71,7 @@ dirs = "6"
 which = "7"
 glob = "0.3"
 regex = "1"
+memmap2 = "0.9"
 
 [profile.release]
 opt-level = 3
