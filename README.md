@@ -61,24 +61,32 @@ jsraft search "react"
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│                    JSRaft CLI                             │
+│                    JSRaft CLI                            │
 │  run │ repl │ build │ lint │ fmt │ install │ completions │
 ├──────────────────────────────────────────────────────────┤
-│              Shared Oxc AST Layer                         │
-│   oxc_parser → AST → oxc_transformer → oxc_codegen      │
+│              Shared Oxc AST Layer                        │
+│   oxc_parser → AST → oxc_transformer → oxc_codegen       │
 ├──────────┬──────────┬───────────┬────────────┬───────────┤
 │ Runtime  │ Bundler  │ Linter    │ Formatter  │ Pkg Mgr   │
 │ rquickjs │ minimal  │ simple    │ simple     │ npm API   │
 │ tokio    │ concat   │ checks    │ whitespace │ oxc_res   │
 ├──────────┴──────────┴───────────┴────────────┴───────────┤
-│              Extension System (ops + JS modules)          │
+│              Extension System (ops + JS modules)         │
 │   console │ fs │ net │ path │ process │ timers           │
 ├──────────────────────────────────────────────────────────┤
-│              JS Engine: QuickJS (rquickjs)                │
+│              JS Engine: QuickJS (rquickjs)               │
 ├──────────────────────────────────────────────────────────┤
-│              Event Loop: Tokio                            │
+│              Event Loop: Tokio                           │
 └──────────────────────────────────────────────────────────┘
 ```
+
+## Performance Roadmap
+
+- [x] V8 upgrade path: feature-gated engine selection hook (`v8`) exists, backend not implemented yet
+- [x] Source maps: bundler emits a minimal valid source map with `sourcesContent`
+- [ ] Snapshot support
+- [ ] io_uring (Linux)
+- [x] Memory-mapped file reads for runtime/module/bundler source loading
 
 ## License
 
