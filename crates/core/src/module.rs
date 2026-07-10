@@ -1,6 +1,14 @@
-use crate::read_text_mmap;
+use crate::{read_text_mmap, JsRaftError, Result};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use tracing::debug;
+
+/// A source file loaded as part of a runtime module graph.
+#[derive(Debug, Clone)]
+pub struct LoadedModule {
+    pub path: PathBuf,
+    pub source: String,
+}
 
 /// Module resolver and loader.
 pub struct ModuleLoader {
@@ -59,6 +67,50 @@ impl ModuleLoader {
         Ok((path, source))
     }
 
+    /// Load an entry file and all relative imports in dependency-first order.
+    pub fn load_graph(&self, entry: &Path) -> Result<Vec<LoadedModule>> {
+        let entry = if entry.is_absolute() {
+            entry.to_path_buf()
+        } else {
+            self.root.join(entry)
+        };
+
+        let mut visited = HashSet::new();
+        let mut modules = Vec::new();
+        self.collect_graph(&entry, &mut visited, &mut modules)?;
+        Ok(modules)
+    }
+
+    fn collect_graph(
+        &self,
+        path: &Path,
+        visited: &mut HashSet<PathBuf>,
+        modules: &mut Vec<LoadedModule>,
+    ) -> Result<()> {
+        let path = path.canonicalize()?;
+        if !visited.insert(path.clone()) {
+            return Ok(());
+        }
+
+        let source = self.read_module(&path)?;
+        for specifier in extract_import_specifiers(&source) {
+            if !(specifier.starts_with('.') || specifier.starts_with('/')) {
+                continue;
+            }
+
+            let resolved = self.resolve(&specifier, Some(&path)).ok_or_else(|| {
+                JsRaftError::ModuleNotFound(format!(
+                    "{specifier} imported from {}",
+                    path.display()
+                ))
+            })?;
+            self.collect_graph(&resolved, visited, modules)?;
+        }
+
+        modules.push(LoadedModule { path, source });
+        Ok(())
+    }
+
     fn try_resolve_file(&self, base: &Path) -> Option<PathBuf> {
         // Try as-is
         if base.is_file() {
@@ -110,4 +162,35 @@ impl ModuleLoader {
     pub fn root(&self) -> &Path {
         &self.root
     }
+}
+
+/// Extract static ESM import/export specifiers from source.
+pub fn extract_import_specifiers(source: &str) -> Vec<String> {
+    let mut imports = Vec::new();
+
+    for line in source.lines() {
+        let trimmed = line.trim();
+        if (trimmed.starts_with("import ") || trimmed.starts_with("export "))
+            && trimmed.contains(['\'', '"'])
+        {
+            if let Some(specifier) = quoted_specifier(trimmed) {
+                imports.push(specifier);
+            }
+        }
+    }
+
+    imports
+}
+
+fn quoted_specifier(input: &str) -> Option<String> {
+    for quote in ['\'', '"'] {
+        if let Some(start) = input.find(quote) {
+            let rest = &input[start + 1..];
+            if let Some(end) = rest.find(quote) {
+                return Some(rest[..end].to_string());
+            }
+        }
+    }
+
+    None
 }

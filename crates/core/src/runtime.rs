@@ -1,6 +1,7 @@
-use crate::{read_text_mmap, module::ModuleLoader};
+use crate::module::{LoadedModule, ModuleLoader};
 use crate::Result;
-use rquickjs::{AsyncContext, AsyncRuntime, Value};
+use rquickjs::{AsyncContext, AsyncRuntime, CatchResultExt, Value};
+use std::fmt::Display;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tracing::info;
@@ -71,6 +72,9 @@ impl JsRuntime {
     pub async fn run_file(&self, path: &Path) -> Result<()> {
         info!("Running file: {}", path.display());
 
+        let modules = self.module_loader.load_graph(path)?;
+        let source = runtime_source(&modules, path);
+
         let rt = AsyncRuntime::new().map_err(|e| {
             crate::JsRaftError::Runtime(format!("Failed to create runtime: {e}"))
         })?;
@@ -88,15 +92,11 @@ impl JsRuntime {
             crate::extensions::process::register(&ctx)?;
             crate::extensions::timers::register(&ctx)?;
 
-            // Load and execute the entry file.
-            let source = read_text_mmap(path)
-                .map_err(|e| crate::JsRaftError::Io(e))?;
-
-            let _: Value = ctx.eval(source.as_bytes())
-                .map_err(|e| crate::JsRaftError::JsError(format!("{e}")))?;
+            let _: Value = ctx.eval(source.as_bytes()).catch(&ctx)
+                .map_err(|e| js_error(path, e))?;
 
             Ok::<(), crate::JsRaftError>(())
-        }).await.map_err(|e| crate::JsRaftError::Runtime(format!("Context error: {e}")))?;
+        }).await?;
 
         Ok(())
     }
@@ -116,12 +116,13 @@ impl JsRuntime {
 
             let val: Value = ctx
                 .eval(code.as_bytes())
-                .map_err(|e| crate::JsRaftError::JsError(format!("{e}")))?;
+                .catch(&ctx)
+                .map_err(|e| crate::JsRaftError::JsError(format!("<eval>: {e}")))?;
 
             let result = value_to_string(&val);
 
             Ok::<String, crate::JsRaftError>(result)
-        }).await.map_err(|e| crate::JsRaftError::Runtime(format!("Context error: {e}")))?;
+        }).await?;
 
         Ok(result)
     }
@@ -145,11 +146,12 @@ impl JsRuntime {
 
                 let val: Value = ctx
                     .eval(code.as_bytes())
-                .map_err(|e| crate::JsRaftError::JsError(format!("{e}")))?;
+                    .catch(&ctx)
+                    .map_err(|e| crate::JsRaftError::JsError(format!("<eval>: {e}")))?;
 
             T::from_js(&ctx, val)
                 .map_err(|e| crate::JsRaftError::JsError(format!("{e}")))
-        }).await.map_err(|e| crate::JsRaftError::Runtime(format!("Context error: {e}")))?;
+        }).await?;
 
         Ok(result)
     }
@@ -184,7 +186,7 @@ impl ReplSession {
             crate::extensions::process::register(&ctx)?;
             crate::extensions::timers::register(&ctx)?;
             Ok::<(), crate::JsRaftError>(())
-        }).await.map_err(|e| crate::JsRaftError::Runtime(format!("Context error: {e}")))?;
+        }).await?;
 
         Ok(Self {
             _runtime: runtime,
@@ -197,9 +199,10 @@ impl ReplSession {
         let result = self.context.with(|ctx| {
             let val: Value = ctx
                 .eval(code.as_bytes())
-                .map_err(|e| crate::JsRaftError::JsError(format!("{e}")))?;
+                .catch(&ctx)
+                .map_err(|e| crate::JsRaftError::JsError(format!("<repl>: {e}")))?;
             Ok::<String, crate::JsRaftError>(value_to_string(&val))
-        }).await.map_err(|e| crate::JsRaftError::Runtime(format!("Context error: {e}")))?;
+        }).await?;
 
         Ok(result)
     }
@@ -222,6 +225,68 @@ fn value_to_string(value: &Value<'_>) -> String {
         return boolean.to_string();
     }
     "[object]".into()
+}
+
+fn runtime_source(modules: &[LoadedModule], entry: &Path) -> String {
+    let mut source = String::new();
+
+    for module in modules {
+        source.push_str("\n// Module: ");
+        source.push_str(&module.path.display().to_string());
+        source.push('\n');
+        source.push_str(&strip_esm_syntax(&module.source));
+        source.push('\n');
+    }
+
+    source.push_str("\n//# sourceURL=");
+    source.push_str(&entry.display().to_string());
+    source.push('\n');
+
+    source
+}
+
+fn strip_esm_syntax(source: &str) -> String {
+    let mut output = String::with_capacity(source.len());
+
+    for line in source.lines() {
+        let trimmed = line.trim_start();
+
+        if trimmed.starts_with("import ") {
+            output.push('\n');
+            continue;
+        }
+
+        if trimmed.starts_with("export {") || trimmed.starts_with("export *") {
+            output.push('\n');
+            continue;
+        }
+
+        if let Some(rest) = trimmed.strip_prefix("export default ") {
+            let indent_len = line.len() - trimmed.len();
+            output.push_str(&line[..indent_len]);
+            output.push_str("const __default = ");
+            output.push_str(rest);
+            output.push('\n');
+            continue;
+        }
+
+        if let Some(rest) = trimmed.strip_prefix("export ") {
+            let indent_len = line.len() - trimmed.len();
+            output.push_str(&line[..indent_len]);
+            output.push_str(rest);
+            output.push('\n');
+            continue;
+        }
+
+        output.push_str(line);
+        output.push('\n');
+    }
+
+    output
+}
+
+fn js_error(path: &Path, error: impl Display) -> crate::JsRaftError {
+    crate::JsRaftError::JsError(format!("{}: {error}", path.display()))
 }
 
 /// Run a file directly (convenience function).
