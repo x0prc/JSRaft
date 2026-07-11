@@ -3,6 +3,7 @@ pub mod io;
 pub mod module;
 pub mod ops;
 pub mod runtime;
+pub mod snapshot;
 
 pub use runtime::{JsRuntime, ReplSession, RuntimeConfig};
 pub use module::ModuleLoader;

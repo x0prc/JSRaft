@@ -37,6 +37,14 @@ pub enum Commands {
         /// File to execute
         file: PathBuf,
 
+        /// Enable bytecode caching (snapshot)
+        #[arg(long, default_value = "true")]
+        cache: bool,
+
+        /// Custom cache directory
+        #[arg(long)]
+        cache_dir: Option<PathBuf>,
+
         /// Pass arguments to the script
         #[arg(trailing_var_arg = true)]
         args: Vec<String>,

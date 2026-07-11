@@ -1,10 +1,11 @@
 use crate::module::{LoadedModule, ModuleLoader};
+use crate::snapshot::{self, BytecodeCache};
 use crate::Result;
 use rquickjs::{AsyncContext, AsyncRuntime, CatchResultExt, Value};
 use std::fmt::Display;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tracing::info;
+use tracing::{debug, info};
 
 /// Configuration for the JSRaft runtime.
 pub struct RuntimeConfig {
@@ -22,6 +23,10 @@ pub struct RuntimeConfig {
     pub memory_limit: usize,
     /// JavaScript engine backend.
     pub engine: EngineKind,
+    /// Enable bytecode caching (snapshots).
+    pub cache_enabled: bool,
+    /// Custom cache directory. Defaults to `.jsraft/cache` under root.
+    pub cache_dir: Option<PathBuf>,
 }
 
 /// JavaScript engine backend selection.
@@ -42,6 +47,8 @@ impl Default for RuntimeConfig {
             max_stack_size: 512 * 1024,       // 512KB
             memory_limit: 128 * 1024 * 1024,  // 128MB
             engine: EngineKind::QuickJs,
+            cache_enabled: true,
+            cache_dir: None,
         }
     }
 }
@@ -75,6 +82,19 @@ impl JsRuntime {
         let modules = self.module_loader.load_graph(path)?;
         let source = runtime_source(&modules, path);
 
+        // Bytecode cache setup
+        let cache = if self.config.cache_enabled {
+            let dir = self.config
+                .cache_dir
+                .clone()
+                .unwrap_or_else(|| BytecodeCache::default_for(&self.config.root).cache_dir);
+            Some(BytecodeCache::new(dir))
+        } else {
+            None
+        };
+
+        let hash = cache.as_ref().map(|_| BytecodeCache::hash_modules(&modules));
+
         let rt = AsyncRuntime::new().map_err(|e| {
             crate::JsRaftError::Runtime(format!("Failed to create runtime: {e}"))
         })?;
@@ -92,8 +112,42 @@ impl JsRuntime {
             crate::extensions::process::register(&ctx)?;
             crate::extensions::timers::register(&ctx)?;
 
+            // Try to load from bytecode cache
+            if let (Some(cache), Some(ref hash)) = (&cache, &hash) {
+                if cache.is_cached(hash) {
+                    match cache.load_bytecode(hash) {
+                        Ok(bytecode) => {
+                            debug!("Loading from bytecode cache (hash: {})", &hash[..12]);
+                            let filename = path.display().to_string();
+                            snapshot::eval_bytecode(&ctx, &bytecode, &filename)?;
+                            return Ok::<(), crate::JsRaftError>(());
+                        }
+                        Err(e) => {
+                            debug!("Cache load failed, falling back to source: {e}");
+                        }
+                    }
+                }
+            }
+
+            // Cache miss: execute source and compile to bytecode
             let _: Value = ctx.eval(source.as_bytes()).catch(&ctx)
                 .map_err(|e| js_error(path, e))?;
+
+            // Save compiled bytecode to cache
+            if let (Some(cache), Some(ref hash)) = (&cache, &hash) {
+                match snapshot::compile_to_bytecode(&ctx, &source, &path.display().to_string()) {
+                    Ok(bytecode) => {
+                        if let Err(e) = cache.save(hash, &bytecode, path, &modules) {
+                            debug!("Failed to save bytecode cache: {e}");
+                        } else {
+                            debug!("Saved bytecode cache (hash: {}, {} bytes)", &hash[..12], bytecode.len());
+                        }
+                    }
+                    Err(e) => {
+                        debug!("Failed to compile to bytecode: {e}");
+                    }
+                }
+            }
 
             Ok::<(), crate::JsRaftError>(())
         }).await?;

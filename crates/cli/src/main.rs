@@ -18,8 +18,13 @@ async fn main() -> Result<()> {
     fmt().with_env_filter(filter).init();
 
     match cli.command {
-        cmd::Commands::Run { file, args } => {
-            cmd::run::execute(&file, &args).await?;
+        cmd::Commands::Run {
+            file,
+            cache,
+            cache_dir,
+            args,
+        } => {
+            cmd::run::execute(&file, cache, cache_dir, &args).await?;
         }
 
         cmd::Commands::Build {
