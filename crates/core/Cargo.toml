@@ -24,6 +24,7 @@ dirs = { workspace = true }
 reqwest = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
+notify = { workspace = true }
 futures = "0.3"
 memmap2 = { workspace = true }
 

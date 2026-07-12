@@ -22,9 +22,10 @@ async fn main() -> Result<()> {
             file,
             cache,
             cache_dir,
+            watch,
             args,
         } => {
-            cmd::run::execute(&file, cache, cache_dir, &args).await?;
+            cmd::run::execute(&file, cache, cache_dir, watch, &args).await?;
         }
 
         cmd::Commands::Build {

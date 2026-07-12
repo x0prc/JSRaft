@@ -45,6 +45,10 @@ pub enum Commands {
         #[arg(long)]
         cache_dir: Option<PathBuf>,
 
+        /// Watch for file changes and re-run
+        #[arg(short, long)]
+        watch: bool,
+
         /// Pass arguments to the script
         #[arg(trailing_var_arg = true)]
         args: Vec<String>,

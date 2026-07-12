@@ -1163,6 +1163,7 @@ dependencies = [
  "glob",
  "hex",
  "memmap2",
+ "notify",
  "oxc_ast",
  "oxc_codegen",
  "oxc_parser",
