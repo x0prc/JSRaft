@@ -86,41 +86,8 @@ async fn main() -> Result<()> {
             }
         }
 
-        cmd::Commands::Init { name } => {
-            let project_name = name.unwrap_or_else(|| {
-                std::env::current_dir()
-                    .unwrap()
-                    .file_name()
-                    .unwrap()
-                    .to_string_lossy()
-                    .to_string()
-            });
-
-            println!("Initializing project: {project_name}");
-
-            let root = std::env::current_dir()?;
-
-            // Create jsraft.toml
-            let config = jsraft_pkg::PkgConfig {
-                name: Some(project_name.clone()),
-                version: Some("0.1.0".into()),
-                ..Default::default()
-            };
-
-            let toml_content = config.to_toml()?;
-            std::fs::write(root.join("jsraft.toml"), toml_content)?;
-
-            // Create src/index.js
-            std::fs::create_dir_all(root.join("src"))?;
-            std::fs::write(
-                root.join("src/index.js"),
-                "console.log('Hello from JSRaft!');\n",
-            )?;
-
-            println!("Created jsraft.toml");
-            println!("Created src/index.js");
-            println!("\nGet started:");
-            println!("  jsraft run src/index.js");
+        cmd::Commands::Init { name, template } => {
+            cmd::init::execute(name, template)?;
         }
 
         cmd::Commands::Repl => {

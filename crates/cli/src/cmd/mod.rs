@@ -1,5 +1,6 @@
 pub mod build;
 pub mod fmt;
+pub mod init;
 pub mod install;
 pub mod lint;
 pub mod repl;
@@ -136,6 +137,10 @@ pub enum Commands {
     Init {
         /// Project name
         name: Option<String>,
+
+        /// Project template
+        #[arg(short, long, value_enum, default_value_t)]
+        template: init::Template,
     },
 
     /// Start an interactive JavaScript REPL
