@@ -46,6 +46,10 @@ pub enum Commands {
         #[arg(long)]
         cache_dir: Option<PathBuf>,
 
+        /// Plugin directory to load before running the entry file
+        #[arg(long = "plugins-dir")]
+        plugins_dirs: Vec<PathBuf>,
+
         /// Watch for file changes and re-run
         #[arg(short, long)]
         watch: bool,

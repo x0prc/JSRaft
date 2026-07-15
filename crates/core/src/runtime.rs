@@ -1,4 +1,5 @@
 use crate::module::{LoadedModule, ModuleLoader};
+use crate::plugin::PluginManager;
 use crate::snapshot::{self, BytecodeCache};
 use crate::Result;
 use rquickjs::{AsyncContext, AsyncRuntime, CatchResultExt, Value};
@@ -27,6 +28,10 @@ pub struct RuntimeConfig {
     pub cache_enabled: bool,
     /// Custom cache directory. Defaults to `.jsraft/cache` under root.
     pub cache_dir: Option<PathBuf>,
+    /// Enable JavaScript plugins.
+    pub plugins_enabled: bool,
+    /// Plugin directories loaded before the entry file.
+    pub plugin_dirs: Vec<PathBuf>,
 }
 
 /// JavaScript engine backend selection.
@@ -49,6 +54,8 @@ impl Default for RuntimeConfig {
             engine: EngineKind::QuickJs,
             cache_enabled: true,
             cache_dir: None,
+            plugins_enabled: true,
+            plugin_dirs: Vec::new(),
         }
     }
 }
@@ -111,6 +118,15 @@ impl JsRuntime {
             crate::extensions::path::register(&ctx)?;
             crate::extensions::process::register(&ctx)?;
             crate::extensions::timers::register(&ctx)?;
+
+            if self.config.plugins_enabled {
+                let dirs = plugin_dirs(&self.config);
+                let manager = PluginManager::new(dirs);
+                let loaded = manager.load_into(&ctx)?;
+                if !loaded.is_empty() {
+                    debug!("Loaded plugins: {}", loaded.join(", "));
+                }
+            }
 
             // Try to load from bytecode cache
             if let (Some(cache), Some(ref hash)) = (&cache, &hash) {
@@ -297,6 +313,14 @@ fn runtime_source(modules: &[LoadedModule], entry: &Path) -> String {
     source.push('\n');
 
     source
+}
+
+fn plugin_dirs(config: &RuntimeConfig) -> Vec<PathBuf> {
+    if !config.plugin_dirs.is_empty() {
+        return config.plugin_dirs.clone();
+    }
+
+    vec![config.root.join("plugins")]
 }
 
 fn strip_esm_syntax(source: &str) -> String {

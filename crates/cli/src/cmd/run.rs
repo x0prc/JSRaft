@@ -10,6 +10,7 @@ pub async fn execute(
     file: &Path,
     cache: bool,
     cache_dir: Option<PathBuf>,
+    plugins_dirs: Vec<PathBuf>,
     watch: bool,
     _args: &[String],
 ) -> Result<()> {
@@ -20,6 +21,7 @@ pub async fn execute(
     let config = RuntimeConfig {
         cache_enabled: cache,
         cache_dir: cache_dir.clone(),
+        plugin_dirs: plugins_dirs.clone(),
         ..Default::default()
     };
 
@@ -82,6 +84,7 @@ pub async fn execute(
                         let runtime = JsRuntime::new(RuntimeConfig {
                             cache_enabled: cache,
                             cache_dir: cache_dir.clone(),
+                            plugin_dirs: plugins_dirs.clone(),
                             ..Default::default()
                         });
                         if let Err(e) = runtime.run_file(file).await {

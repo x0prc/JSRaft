@@ -274,12 +274,28 @@ jsraft run src/index.js --watch
 jsraft repl
 ```
 
+## Plugins
+
+Place JavaScript plugins in `plugins/` or pass a custom directory:
+
+```bash
+jsraft run src/index.js --plugins-dir ./plugins
+```
+
+Plugins run before your entry file and can register with:
+
+```js
+JSRaft.registerPlugin("my-plugin");
+globalThis.myFeature = "available to the app";
+```
+
 ## Project Structure
 
 ```
 {name}/
   jsraft.toml    # Project configuration
   src/           # Source files
+  plugins/       # Optional runtime plugins
   .gitignore     # Git ignore rules
 ```
 
