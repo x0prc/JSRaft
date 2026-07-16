@@ -95,6 +95,10 @@ async fn main() -> Result<()> {
             cmd::repl::execute().await?;
         }
 
+        cmd::Commands::Test { paths, fail_fast } => {
+            cmd::test::execute(&paths, fail_fast).await?;
+        }
+
         cmd::Commands::RunScript { script } => {
             // Load config and find script
             let root = std::env::current_dir()?;

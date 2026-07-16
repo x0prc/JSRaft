@@ -5,6 +5,7 @@ pub mod install;
 pub mod lint;
 pub mod repl;
 pub mod run;
+pub mod test;
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -149,6 +150,16 @@ pub enum Commands {
 
     /// Start an interactive JavaScript REPL
     Repl,
+
+    /// Run JavaScript test files
+    Test {
+        /// Test files or directories to run
+        paths: Vec<PathBuf>,
+
+        /// Stop after the first failing file
+        #[arg(long)]
+        fail_fast: bool,
+    },
 
     /// Run a script from package.json/jsraft.toml
     RunScript {

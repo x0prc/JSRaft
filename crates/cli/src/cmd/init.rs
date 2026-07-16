@@ -270,6 +270,9 @@ jsraft run src/index.js
 # Run with watch mode
 jsraft run src/index.js --watch
 
+# Run tests
+jsraft test
+
 # Run the REPL
 jsraft repl
 ```

@@ -15,6 +15,7 @@ jsraft-bundler = { path = "../bundler" }
 jsraft-lint = { path = "../lint" }
 jsraft-fmt = { path = "../fmt" }
 jsraft-pkg = { path = "../pkg" }
+rquickjs = { workspace = true }
 clap = { workspace = true }
 clap_complete = { workspace = true }
 anyhow = { workspace = true }

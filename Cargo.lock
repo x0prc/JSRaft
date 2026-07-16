@@ -1144,6 +1144,7 @@ dependencies = [
  "jsraft-lint",
  "jsraft-pkg",
  "notify",
+ "rquickjs",
  "serde",
  "serde_json",
  "tokio",
