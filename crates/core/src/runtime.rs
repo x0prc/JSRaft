@@ -1,8 +1,8 @@
-use crate::module::{LoadedModule, ModuleLoader};
+use crate::module::{LoadedModule, ModuleLoader, QuickJsModuleLoader, QuickJsModuleResolver};
 use crate::plugin::PluginManager;
 use crate::snapshot::{self, BytecodeCache};
 use crate::Result;
-use rquickjs::{AsyncContext, AsyncRuntime, CatchResultExt, Value};
+use rquickjs::{AsyncContext, AsyncRuntime, CatchResultExt, Module, Value};
 use std::fmt::Display;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -49,8 +49,8 @@ impl Default for RuntimeConfig {
             typescript: true,
             source_maps: true,
             strict: true,
-            max_stack_size: 512 * 1024,       // 512KB
-            memory_limit: 128 * 1024 * 1024,  // 128MB
+            max_stack_size: 512 * 1024,      // 512KB
+            memory_limit: 128 * 1024 * 1024, // 128MB
             engine: EngineKind::QuickJs,
             cache_enabled: true,
             cache_dir: None,
@@ -88,10 +88,12 @@ impl JsRuntime {
 
         let modules = self.module_loader.load_graph(path)?;
         let source = runtime_source(&modules, path);
+        let uses_esm = uses_esm_modules(&modules);
 
         // Bytecode cache setup
         let cache = if self.config.cache_enabled {
-            let dir = self.config
+            let dir = self
+                .config
                 .cache_dir
                 .clone()
                 .unwrap_or_else(|| BytecodeCache::default_for(&self.config.root).cache_dir);
@@ -100,15 +102,28 @@ impl JsRuntime {
             None
         };
 
-        let hash = cache.as_ref().map(|_| BytecodeCache::hash_modules(&modules));
+        let hash = if uses_esm {
+            None
+        } else {
+            cache
+                .as_ref()
+                .map(|_| BytecodeCache::hash_modules(&modules))
+        };
 
-        let rt = AsyncRuntime::new().map_err(|e| {
-            crate::JsRaftError::Runtime(format!("Failed to create runtime: {e}"))
-        })?;
+        let rt = AsyncRuntime::new()
+            .map_err(|e| crate::JsRaftError::Runtime(format!("Failed to create runtime: {e}")))?;
 
-        let ctx = AsyncContext::full(&rt).await.map_err(|e| {
-            crate::JsRaftError::Runtime(format!("Failed to create context: {e}"))
-        })?;
+        if uses_esm {
+            rt.set_loader(
+                QuickJsModuleResolver::new(self.config.root.clone()),
+                QuickJsModuleLoader::new(self.config.root.clone()),
+            )
+            .await;
+        }
+
+        let ctx = AsyncContext::full(&rt)
+            .await
+            .map_err(|e| crate::JsRaftError::Runtime(format!("Failed to create context: {e}")))?;
 
         ctx.with(|ctx| {
             // Register built-in extensions
@@ -126,6 +141,20 @@ impl JsRuntime {
                 if !loaded.is_empty() {
                     debug!("Loaded plugins: {}", loaded.join(", "));
                 }
+            }
+
+            if uses_esm {
+                let entry = modules.last().ok_or_else(|| {
+                    crate::JsRaftError::Runtime(format!("No modules loaded for {}", path.display()))
+                })?;
+                let name = entry.path.to_string_lossy().into_owned();
+                Module::evaluate(ctx.clone(), name, entry.source.as_bytes())
+                    .catch(&ctx)
+                    .map_err(|e| js_error(path, e))?
+                    .finish::<()>()
+                    .catch(&ctx)
+                    .map_err(|e| js_error(path, e))?;
+                return Ok::<(), crate::JsRaftError>(());
             }
 
             // Try to load from bytecode cache
@@ -146,7 +175,9 @@ impl JsRuntime {
             }
 
             // Cache miss: execute source and compile to bytecode
-            let _: Value = ctx.eval(source.as_bytes()).catch(&ctx)
+            let _: Value = ctx
+                .eval(source.as_bytes())
+                .catch(&ctx)
                 .map_err(|e| js_error(path, e))?;
 
             // Save compiled bytecode to cache
@@ -156,7 +187,11 @@ impl JsRuntime {
                         if let Err(e) = cache.save(hash, &bytecode, path, &modules) {
                             debug!("Failed to save bytecode cache: {e}");
                         } else {
-                            debug!("Saved bytecode cache (hash: {}, {} bytes)", &hash[..12], bytecode.len());
+                            debug!(
+                                "Saved bytecode cache (hash: {}, {} bytes)",
+                                &hash[..12],
+                                bytecode.len()
+                            );
                         }
                     }
                     Err(e) => {
@@ -166,33 +201,35 @@ impl JsRuntime {
             }
 
             Ok::<(), crate::JsRaftError>(())
-        }).await?;
+        })
+        .await?;
 
         Ok(())
     }
 
     /// Evaluate a JavaScript string.
     pub async fn eval(&self, code: &str, _filename: &str) -> Result<String> {
-        let rt = AsyncRuntime::new().map_err(|e| {
-            crate::JsRaftError::Runtime(format!("Failed to create runtime: {e}"))
-        })?;
+        let rt = AsyncRuntime::new()
+            .map_err(|e| crate::JsRaftError::Runtime(format!("Failed to create runtime: {e}")))?;
 
-        let ctx = AsyncContext::full(&rt).await.map_err(|e| {
-            crate::JsRaftError::Runtime(format!("Failed to create context: {e}"))
-        })?;
+        let ctx = AsyncContext::full(&rt)
+            .await
+            .map_err(|e| crate::JsRaftError::Runtime(format!("Failed to create context: {e}")))?;
 
-        let result = ctx.with(|ctx| {
-            crate::extensions::console::register(&ctx)?;
+        let result = ctx
+            .with(|ctx| {
+                crate::extensions::console::register(&ctx)?;
 
-            let val: Value = ctx
-                .eval(code.as_bytes())
-                .catch(&ctx)
-                .map_err(|e| crate::JsRaftError::JsError(format!("<eval>: {e}")))?;
+                let val: Value = ctx
+                    .eval(code.as_bytes())
+                    .catch(&ctx)
+                    .map_err(|e| crate::JsRaftError::JsError(format!("<eval>: {e}")))?;
 
-            let result = value_to_string(&val);
+                let result = value_to_string(&val);
 
-            Ok::<String, crate::JsRaftError>(result)
-        }).await?;
+                Ok::<String, crate::JsRaftError>(result)
+            })
+            .await?;
 
         Ok(result)
     }
@@ -203,25 +240,25 @@ impl JsRuntime {
         code: &str,
         _filename: &str,
     ) -> Result<T> {
-        let rt = AsyncRuntime::new().map_err(|e| {
-            crate::JsRaftError::Runtime(format!("Failed to create runtime: {e}"))
-        })?;
+        let rt = AsyncRuntime::new()
+            .map_err(|e| crate::JsRaftError::Runtime(format!("Failed to create runtime: {e}")))?;
 
-        let ctx = AsyncContext::full(&rt).await.map_err(|e| {
-            crate::JsRaftError::Runtime(format!("Failed to create context: {e}"))
-        })?;
+        let ctx = AsyncContext::full(&rt)
+            .await
+            .map_err(|e| crate::JsRaftError::Runtime(format!("Failed to create context: {e}")))?;
 
-        let result = ctx.with(|ctx| {
-            crate::extensions::console::register(&ctx)?;
+        let result = ctx
+            .with(|ctx| {
+                crate::extensions::console::register(&ctx)?;
 
                 let val: Value = ctx
                     .eval(code.as_bytes())
                     .catch(&ctx)
                     .map_err(|e| crate::JsRaftError::JsError(format!("<eval>: {e}")))?;
 
-            T::from_js(&ctx, val)
-                .map_err(|e| crate::JsRaftError::JsError(format!("{e}")))
-        }).await?;
+                T::from_js(&ctx, val).map_err(|e| crate::JsRaftError::JsError(format!("{e}")))
+            })
+            .await?;
 
         Ok(result)
     }
@@ -240,23 +277,24 @@ impl JsRuntime {
 impl ReplSession {
     /// Create a persistent REPL session with built-in APIs registered once.
     pub async fn new() -> Result<Self> {
-        let runtime = AsyncRuntime::new().map_err(|e| {
-            crate::JsRaftError::Runtime(format!("Failed to create runtime: {e}"))
-        })?;
+        let runtime = AsyncRuntime::new()
+            .map_err(|e| crate::JsRaftError::Runtime(format!("Failed to create runtime: {e}")))?;
 
-        let context = AsyncContext::full(&runtime).await.map_err(|e| {
-            crate::JsRaftError::Runtime(format!("Failed to create context: {e}"))
-        })?;
+        let context = AsyncContext::full(&runtime)
+            .await
+            .map_err(|e| crate::JsRaftError::Runtime(format!("Failed to create context: {e}")))?;
 
-        context.with(|ctx| {
-            crate::extensions::console::register(&ctx)?;
-            crate::extensions::fs::register(&ctx)?;
-            crate::extensions::net::register(&ctx)?;
-            crate::extensions::path::register(&ctx)?;
-            crate::extensions::process::register(&ctx)?;
-            crate::extensions::timers::register(&ctx)?;
-            Ok::<(), crate::JsRaftError>(())
-        }).await?;
+        context
+            .with(|ctx| {
+                crate::extensions::console::register(&ctx)?;
+                crate::extensions::fs::register(&ctx)?;
+                crate::extensions::net::register(&ctx)?;
+                crate::extensions::path::register(&ctx)?;
+                crate::extensions::process::register(&ctx)?;
+                crate::extensions::timers::register(&ctx)?;
+                Ok::<(), crate::JsRaftError>(())
+            })
+            .await?;
 
         Ok(Self {
             _runtime: runtime,
@@ -266,13 +304,16 @@ impl ReplSession {
 
     /// Evaluate a single input while preserving global context state.
     pub async fn eval(&self, code: &str) -> Result<String> {
-        let result = self.context.with(|ctx| {
-            let val: Value = ctx
-                .eval(code.as_bytes())
-                .catch(&ctx)
-                .map_err(|e| crate::JsRaftError::JsError(format!("<repl>: {e}")))?;
-            Ok::<String, crate::JsRaftError>(value_to_string(&val))
-        }).await?;
+        let result = self
+            .context
+            .with(|ctx| {
+                let val: Value = ctx
+                    .eval(code.as_bytes())
+                    .catch(&ctx)
+                    .map_err(|e| crate::JsRaftError::JsError(format!("<repl>: {e}")))?;
+                Ok::<String, crate::JsRaftError>(value_to_string(&val))
+            })
+            .await?;
 
         Ok(result)
     }
@@ -321,6 +362,19 @@ fn plugin_dirs(config: &RuntimeConfig) -> Vec<PathBuf> {
     }
 
     vec![config.root.join("plugins")]
+}
+
+fn uses_esm_modules(modules: &[LoadedModule]) -> bool {
+    modules.iter().any(|module| has_esm_syntax(&module.source))
+}
+
+fn has_esm_syntax(source: &str) -> bool {
+    source.lines().any(|line| {
+        let trimmed = line.trim_start();
+        trimmed.starts_with("import ")
+            || trimmed.starts_with("export ")
+            || trimmed.starts_with("export{")
+    })
 }
 
 fn strip_esm_syntax(source: &str) -> String {

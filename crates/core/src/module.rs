@@ -1,4 +1,5 @@
 use crate::{read_text_mmap, JsRaftError, Result};
+use rquickjs::{loader, Ctx, Module};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use tracing::debug;
@@ -15,6 +16,16 @@ pub struct ModuleLoader {
     root: PathBuf,
 }
 
+/// QuickJS resolver backed by JSRaft module resolution.
+pub struct QuickJsModuleResolver {
+    loader: ModuleLoader,
+}
+
+/// QuickJS loader backed by JSRaft file loading.
+pub struct QuickJsModuleLoader {
+    loader: ModuleLoader,
+}
+
 impl ModuleLoader {
     /// Create a new module loader rooted at the given directory.
     pub fn new(root: PathBuf) -> Self {
@@ -23,15 +34,9 @@ impl ModuleLoader {
 
     /// Resolve a module specifier to a file path.
     pub fn resolve(&self, specifier: &str, importer: Option<&Path>) -> Option<PathBuf> {
-        let cwd = importer
-            .and_then(|p| p.parent())
-            .unwrap_or(&self.root);
+        let cwd = importer.and_then(|p| p.parent()).unwrap_or(&self.root);
 
-        debug!(
-            "Resolving '{}' from '{}'",
-            specifier,
-            cwd.display()
-        );
+        debug!("Resolving '{}' from '{}'", specifier, cwd.display());
 
         // Handle relative paths
         if specifier.starts_with('.') {
@@ -55,14 +60,17 @@ impl ModuleLoader {
     }
 
     /// Resolve and read a module in one step.
-    pub fn load(&self, specifier: &str, importer: Option<&Path>) -> std::io::Result<(PathBuf, String)> {
-        let path = self.resolve(specifier, importer)
-            .ok_or_else(|| {
-                std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    format!("Module not found: {specifier}"),
-                )
-            })?;
+    pub fn load(
+        &self,
+        specifier: &str,
+        importer: Option<&Path>,
+    ) -> std::io::Result<(PathBuf, String)> {
+        let path = self.resolve(specifier, importer).ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("Module not found: {specifier}"),
+            )
+        })?;
         let source = self.read_module(&path)?;
         Ok((path, source))
     }
@@ -99,10 +107,7 @@ impl ModuleLoader {
             }
 
             let resolved = self.resolve(&specifier, Some(&path)).ok_or_else(|| {
-                JsRaftError::ModuleNotFound(format!(
-                    "{specifier} imported from {}",
-                    path.display()
-                ))
+                JsRaftError::ModuleNotFound(format!("{specifier} imported from {}", path.display()))
             })?;
             self.collect_graph(&resolved, visited, modules)?;
         }
@@ -150,7 +155,11 @@ impl ModuleLoader {
             current = dir.parent().map(|p| p.to_path_buf());
 
             // Stop at root
-            if current.as_ref().map(|p| p == Path::new("/")).unwrap_or(false) {
+            if current
+                .as_ref()
+                .map(|p| p == Path::new("/"))
+                .unwrap_or(false)
+            {
                 break;
             }
         }
@@ -161,6 +170,62 @@ impl ModuleLoader {
     /// Get the root directory.
     pub fn root(&self) -> &Path {
         &self.root
+    }
+}
+
+impl QuickJsModuleResolver {
+    /// Create a QuickJS resolver rooted at the given directory.
+    pub fn new(root: PathBuf) -> Self {
+        Self {
+            loader: ModuleLoader::new(root),
+        }
+    }
+}
+
+impl QuickJsModuleLoader {
+    /// Create a QuickJS loader rooted at the given directory.
+    pub fn new(root: PathBuf) -> Self {
+        Self {
+            loader: ModuleLoader::new(root),
+        }
+    }
+}
+
+impl loader::Resolver for QuickJsModuleResolver {
+    fn resolve<'js>(
+        &mut self,
+        _ctx: &Ctx<'js>,
+        base: &str,
+        name: &str,
+    ) -> rquickjs::Result<String> {
+        let importer = if base.is_empty() || base == "<input>" {
+            None
+        } else {
+            Some(Path::new(base))
+        };
+
+        self.loader
+            .resolve(name, importer)
+            .and_then(|path| path.canonicalize().ok())
+            .map(|path| path.to_string_lossy().into_owned())
+            .ok_or_else(|| rquickjs::Error::new_resolving_message(base, name, "module not found"))
+    }
+}
+
+impl loader::Loader for QuickJsModuleLoader {
+    fn load<'js>(&mut self, ctx: &Ctx<'js>, name: &str) -> rquickjs::Result<Module<'js>> {
+        let path = Path::new(name);
+        let source = self
+            .loader
+            .read_module(path)
+            .map_err(|e| rquickjs::Error::new_loading_message(name, e.to_string()))?;
+
+        if path.extension().and_then(|e| e.to_str()) == Some("json") {
+            let source = format!("export default {};", source);
+            return Module::declare(ctx.clone(), name, source);
+        }
+
+        Module::declare(ctx.clone(), name, source)
     }
 }
 
