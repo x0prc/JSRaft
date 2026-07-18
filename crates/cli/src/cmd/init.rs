@@ -164,39 +164,33 @@ fn scaffold_server(root: &Path, name: &str) -> Result<()> {
     fs::write(
         root.join("src/server.js"),
         r#"// JSRaft Web Server
-// A minimal HTTP server example
+// Run with: jsraft run src/server.js
 
 const PORT = 3000;
 
-// Simple request handler
-function handleRequest(method, path) {
-    if (path === "/") {
+JSRaft.serve((request) => {
+    if (request.path === "/") {
         return {
             status: 200,
+            contentType: "application/json",
             body: JSON.stringify({ message: "Hello from JSRaft Server!" }),
         };
     }
 
-    if (path === "/health") {
+    if (request.path === "/health") {
         return {
             status: 200,
+            contentType: "application/json",
             body: JSON.stringify({ status: "ok" }),
         };
     }
 
     return {
         status: 404,
+        contentType: "application/json",
         body: JSON.stringify({ error: "Not found" }),
     };
-}
-
-console.log(`Server starting on http://localhost:${PORT}`);
-console.log("Routes:");
-console.log("  GET /        - Hello message");
-console.log("  GET /health  - Health check");
-console.log("");
-console.log("Note: HTTP server support is coming soon!");
-console.log("For now, this demonstrates the server scaffolding.");
+}, { port: PORT });
 "#,
     )?;
 
