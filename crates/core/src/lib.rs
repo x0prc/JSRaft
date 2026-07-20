@@ -5,6 +5,7 @@ pub mod ops;
 pub mod runtime;
 pub mod snapshot;
 pub mod plugin;
+pub mod transform;
 pub mod watcher;
 
 pub use runtime::{JsRuntime, ReplSession, RuntimeConfig};

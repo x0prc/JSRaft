@@ -1,4 +1,4 @@
-use crate::{read_text_mmap, JsRaftError, Result};
+use crate::{read_text_mmap, transform::transform_typescript, JsRaftError, Result};
 use rquickjs::{loader, Ctx, Module};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -112,6 +112,7 @@ impl ModuleLoader {
             self.collect_graph(&resolved, visited, modules)?;
         }
 
+        let source = transform_typescript(&path, &source)?;
         modules.push(LoadedModule { path, source });
         Ok(())
     }
@@ -224,6 +225,9 @@ impl loader::Loader for QuickJsModuleLoader {
             let source = format!("export default {};", source);
             return Module::declare(ctx.clone(), name, source);
         }
+
+        let source = transform_typescript(path, &source)
+            .map_err(|e| rquickjs::Error::new_loading_message(name, e.to_string()))?;
 
         Module::declare(ctx.clone(), name, source)
     }
