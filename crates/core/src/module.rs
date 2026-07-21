@@ -144,11 +144,17 @@ impl ModuleLoader {
     }
 
     fn resolve_node_modules(&self, specifier: &str, cwd: &Path) -> Option<PathBuf> {
+        let (package_name, subpath) = split_package_specifier(specifier)?;
         let mut current = Some(cwd.to_path_buf());
 
         while let Some(dir) = current {
-            let candidate = dir.join("node_modules").join(specifier);
-            if let Some(resolved) = self.try_resolve_file(&candidate) {
+            let package_dir = dir.join("node_modules").join(package_name);
+
+            if let Some(subpath) = subpath {
+                if let Some(resolved) = self.resolve_package_subpath(&package_dir, subpath) {
+                    return Some(resolved);
+                }
+            } else if let Some(resolved) = self.resolve_package_entry(&package_dir) {
                 return Some(resolved);
             }
 
@@ -166,6 +172,46 @@ impl ModuleLoader {
         }
 
         None
+    }
+
+    fn resolve_package_entry(&self, package_dir: &Path) -> Option<PathBuf> {
+        if !package_dir.is_dir() {
+            return self.try_resolve_file(package_dir);
+        }
+
+        if let Some(package_json) = read_package_json(package_dir) {
+            for target in package_entry_targets(&package_json) {
+                if let Some(resolved) = self.try_resolve_file(&package_dir.join(target)) {
+                    return Some(resolved);
+                }
+            }
+        }
+
+        for index in ["index.js", "index.mjs", "index.cjs", "index.ts"] {
+            let candidate = package_dir.join(index);
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+        }
+
+        None
+    }
+
+    fn resolve_package_subpath(&self, package_dir: &Path, subpath: &str) -> Option<PathBuf> {
+        if !package_dir.is_dir() {
+            return None;
+        }
+
+        if let Some(package_json) = read_package_json(package_dir) {
+            let export_key = format!("./{}", subpath.trim_start_matches("./"));
+            for target in package_export_targets(&package_json, &export_key) {
+                if let Some(resolved) = self.try_resolve_file(&package_dir.join(target)) {
+                    return Some(resolved);
+                }
+            }
+        }
+
+        self.try_resolve_file(&package_dir.join(subpath))
     }
 
     /// Get the root directory.
@@ -230,6 +276,120 @@ impl loader::Loader for QuickJsModuleLoader {
             .map_err(|e| rquickjs::Error::new_loading_message(name, e.to_string()))?;
 
         Module::declare(ctx.clone(), name, source)
+    }
+}
+
+fn split_package_specifier(specifier: &str) -> Option<(&str, Option<&str>)> {
+    if specifier.is_empty() || specifier.starts_with('.') || specifier.starts_with('/') {
+        return None;
+    }
+
+    if specifier.starts_with('@') {
+        let mut parts = specifier.splitn(3, '/');
+        let scope = parts.next()?;
+        let name = parts.next()?;
+        let package_len = scope.len() + 1 + name.len();
+        let subpath = parts.next();
+        return Some((&specifier[..package_len], subpath));
+    }
+
+    if let Some((package_name, subpath)) = specifier.split_once('/') {
+        Some((package_name, Some(subpath)))
+    } else {
+        Some((specifier, None))
+    }
+}
+
+fn read_package_json(package_dir: &Path) -> Option<serde_json::Value> {
+    let content = read_text_mmap(&package_dir.join("package.json")).ok()?;
+    serde_json::from_str(&content).ok()
+}
+
+fn package_entry_targets(package_json: &serde_json::Value) -> Vec<String> {
+    let mut targets = Vec::new();
+
+    if let Some(exports) = package_json.get("exports") {
+        collect_root_export_targets(exports, &mut targets);
+    }
+
+    for field in ["module", "main", "browser"] {
+        if let Some(target) = package_json.get(field).and_then(|value| value.as_str()) {
+            push_package_target(&mut targets, target);
+        }
+    }
+
+    targets
+}
+
+fn package_export_targets(package_json: &serde_json::Value, key: &str) -> Vec<String> {
+    let mut targets = Vec::new();
+    let Some(exports) = package_json.get("exports") else {
+        return targets;
+    };
+
+    if key == "." {
+        collect_root_export_targets(exports, &mut targets);
+        return targets;
+    }
+
+    if let Some(export_map) = exports.as_object() {
+        if let Some(target) = export_map.get(key) {
+            collect_package_targets(target, &mut targets);
+        }
+    }
+
+    targets
+}
+
+fn collect_root_export_targets(exports: &serde_json::Value, targets: &mut Vec<String>) {
+    if exports.is_string() || exports.is_array() {
+        collect_package_targets(exports, targets);
+        return;
+    }
+
+    let Some(object) = exports.as_object() else {
+        return;
+    };
+
+    if let Some(root) = object.get(".") {
+        collect_package_targets(root, targets);
+    } else if object.keys().all(|key| !key.starts_with('.')) {
+        collect_package_targets(exports, targets);
+    }
+}
+
+fn collect_package_targets(value: &serde_json::Value, targets: &mut Vec<String>) {
+    if let Some(target) = value.as_str() {
+        push_package_target(targets, target);
+        return;
+    }
+
+    if let Some(values) = value.as_array() {
+        for value in values {
+            collect_package_targets(value, targets);
+        }
+        return;
+    }
+
+    let Some(object) = value.as_object() else {
+        return;
+    };
+
+    for condition in ["import", "module", "default", "require", "browser"] {
+        if let Some(target) = object.get(condition) {
+            collect_package_targets(target, targets);
+        }
+    }
+}
+
+fn push_package_target(targets: &mut Vec<String>, target: &str) {
+    if target.is_empty() || target.starts_with('/') || target.contains("..") {
+        return;
+    }
+
+    let target = target.trim_start_matches("./").to_string();
+    if !targets.contains(&target) {
+        targets.push(target);
     }
 }
 
