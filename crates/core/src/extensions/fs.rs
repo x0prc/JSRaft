@@ -1,9 +1,10 @@
+use crate::RuntimePermissions;
 use rquickjs::{Ctx, Function};
 use std::fs;
 use std::path::PathBuf;
 
 /// Register filesystem APIs: Deno.readFile, Deno.writeFile, etc.
-pub fn register(ctx: &Ctx<'_>) -> crate::Result<()> {
+pub fn register(ctx: &Ctx<'_>, permissions: &RuntimePermissions) -> crate::Result<()> {
     let globals = ctx.globals();
 
     // Create a Deno-like namespace
@@ -11,8 +12,12 @@ pub fn register(ctx: &Ctx<'_>) -> crate::Result<()> {
         .map_err(|e| crate::JsRaftError::Extension(format!("Failed to create Deno object: {e}")))?;
 
     // Deno.readTextFile(path) -> string
+    let allow_read = permissions.read;
     let read_text_file =
-        Function::new(ctx.clone(), |path: String| -> String {
+        Function::new(ctx.clone(), move |path: String| -> String {
+            if !allow_read {
+                return "Permission denied: read access requires --allow-read".into();
+            }
             fs::read_to_string(&path).unwrap_or_else(|e| format!("Error reading '{path}': {e}"))
         })
         .map_err(|e| crate::JsRaftError::Extension(format!("Failed to create readTextFile: {e}")))?;
@@ -22,8 +27,12 @@ pub fn register(ctx: &Ctx<'_>) -> crate::Result<()> {
     })?;
 
     // Deno.writeTextFile(path, data) - returns empty string on success
+    let allow_write = permissions.write;
     let write_text_file =
-        Function::new(ctx.clone(), |path: String, data: String| -> String {
+        Function::new(ctx.clone(), move |path: String, data: String| -> String {
+            if !allow_write {
+                return "Permission denied: write access requires --allow-write".into();
+            }
             match fs::write(&path, &data) {
                 Ok(()) => String::new(),
                 Err(e) => format!("Error writing '{path}': {e}"),
@@ -36,7 +45,11 @@ pub fn register(ctx: &Ctx<'_>) -> crate::Result<()> {
     })?;
 
     // Deno.mkdir(path) - returns empty string on success
-    let mkdir = Function::new(ctx.clone(), |path: String| -> String {
+    let allow_write = permissions.write;
+    let mkdir = Function::new(ctx.clone(), move |path: String| -> String {
+        if !allow_write {
+            return "Permission denied: write access requires --allow-write".into();
+        }
         match fs::create_dir_all(&path) {
             Ok(()) => String::new(),
             Err(e) => format!("Error creating directory '{path}': {e}"),
@@ -49,7 +62,11 @@ pub fn register(ctx: &Ctx<'_>) -> crate::Result<()> {
     })?;
 
     // Deno.remove(path) - returns empty string on success
-    let remove = Function::new(ctx.clone(), |path: String| -> String {
+    let allow_write = permissions.write;
+    let remove = Function::new(ctx.clone(), move |path: String| -> String {
+        if !allow_write {
+            return "Permission denied: write access requires --allow-write".into();
+        }
         let p = PathBuf::from(&path);
         let result = if p.is_dir() {
             fs::remove_dir_all(&path)
@@ -68,7 +85,11 @@ pub fn register(ctx: &Ctx<'_>) -> crate::Result<()> {
     })?;
 
     // Deno.stat(path) -> JSON string with file info
-    let stat = Function::new(ctx.clone(), |path: String| -> String {
+    let allow_read = permissions.read;
+    let stat = Function::new(ctx.clone(), move |path: String| -> String {
+        if !allow_read {
+            return "{\"error\":\"Permission denied: read access requires --allow-read\"}".into();
+        }
         match fs::metadata(&path) {
             Ok(metadata) => {
                 let mtime = metadata.modified()

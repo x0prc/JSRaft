@@ -1,16 +1,21 @@
+use crate::RuntimePermissions;
 use rquickjs::{Ctx, Function, Object, Value};
 use std::collections::BTreeMap;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 
 /// Register networking APIs: fetch, etc.
-pub fn register(ctx: &Ctx<'_>) -> crate::Result<()> {
+pub fn register(ctx: &Ctx<'_>, permissions: &RuntimePermissions) -> crate::Result<()> {
     let globals = ctx.globals();
 
     // Global fetch (basic implementation)
+    let allow_net = permissions.net;
     let fetch = Function::new(
         ctx.clone(),
         move |url: String| -> String {
+            if !allow_net {
+                return "{\"error\":\"Permission denied: net access requires --allow-net\"}".into();
+            }
             // Synchronous fetch using reqwest for MVP
             let client = reqwest::blocking::Client::new();
 
@@ -45,7 +50,8 @@ pub fn register(ctx: &Ctx<'_>) -> crate::Result<()> {
         .set("__jsraft_serve", serve)
         .map_err(|e| crate::JsRaftError::Extension(format!("Failed to set __jsraft_serve: {e}")))?;
 
-    let bootstrap = r#"
+    let bootstrap = if permissions.net {
+        r#"
         globalThis.JSRaft = globalThis.JSRaft || {};
         JSRaft.serve = function serve(handler, options) {
             const port = Number((options && options.port) || 3000);
@@ -60,7 +66,19 @@ pub fn register(ctx: &Ctx<'_>) -> crate::Result<()> {
             const port = Number((options && options.port) || 3000);
             return __jsraft_serve(port, handler);
         };
-    "#;
+    "#
+    } else {
+        r#"
+        globalThis.JSRaft = globalThis.JSRaft || {};
+        JSRaft.serve = function serve() {
+            throw new Error("Permission denied: net access requires --allow-net");
+        };
+        globalThis.Deno = globalThis.Deno || {};
+        Deno.serve = function serve() {
+            throw new Error("Permission denied: net access requires --allow-net");
+        };
+    "#
+    };
     let _: Value = ctx
         .eval(bootstrap.as_bytes())
         .map_err(|e| crate::JsRaftError::Extension(format!("Failed to register serve APIs: {e}")))?;
