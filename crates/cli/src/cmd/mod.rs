@@ -1,4 +1,6 @@
 pub mod build;
+pub mod clean;
+pub mod doctor;
 pub mod fmt;
 pub mod init;
 pub mod install;
@@ -54,6 +56,30 @@ pub enum Commands {
         /// Watch for file changes and re-run
         #[arg(short, long)]
         watch: bool,
+
+        /// Enable deny-by-default permissions mode
+        #[arg(long)]
+        secure: bool,
+
+        /// Allow filesystem read APIs in --secure mode
+        #[arg(long = "allow-read")]
+        allow_read: bool,
+
+        /// Allow filesystem write APIs in --secure mode
+        #[arg(long = "allow-write")]
+        allow_write: bool,
+
+        /// Allow network APIs in --secure mode
+        #[arg(long = "allow-net")]
+        allow_net: bool,
+
+        /// Allow environment variable access in --secure mode
+        #[arg(long = "allow-env")]
+        allow_env: bool,
+
+        /// Allow process mutation APIs in --secure mode
+        #[arg(long = "allow-process")]
+        allow_process: bool,
 
         /// Pass arguments to the script
         #[arg(trailing_var_arg = true)]
@@ -181,5 +207,15 @@ pub enum Commands {
         /// Shell to generate for
         #[arg(value_enum)]
         shell: clap_complete::Shell,
+    },
+
+    /// Print project diagnostics
+    Doctor,
+
+    /// Remove generated artifacts
+    Clean {
+        /// Also remove dist/ and build/
+        #[arg(long)]
+        all: bool,
     },
 }

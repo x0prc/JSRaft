@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use jsraft_core::{extensions, JsRaftError};
+use jsraft_core::{extensions, JsRaftError, RuntimePermissions};
 use rquickjs::{AsyncContext, AsyncRuntime, CatchResultExt, Value};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -124,9 +124,10 @@ async fn run_test_file(path: &Path) -> Result<TestSummary> {
     let json = ctx
         .with(|ctx| {
             extensions::console::register(&ctx)?;
-            extensions::fs::register(&ctx)?;
+            let permissions = RuntimePermissions::default();
+            extensions::fs::register(&ctx, &permissions)?;
             extensions::path::register(&ctx)?;
-            extensions::process::register(&ctx)?;
+            extensions::process::register(&ctx, &permissions)?;
             extensions::timers::register(&ctx)?;
 
             let _: Value = ctx

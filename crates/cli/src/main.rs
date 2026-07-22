@@ -24,9 +24,24 @@ async fn main() -> Result<()> {
             cache_dir,
             plugins_dirs,
             watch,
+            secure,
+            allow_read,
+            allow_write,
+            allow_net,
+            allow_env,
+            allow_process,
             args,
         } => {
-            cmd::run::execute(&file, cache, cache_dir, plugins_dirs, watch, &args).await?;
+            let permissions = cmd::run::PermissionFlags {
+                secure,
+                allow_read,
+                allow_write,
+                allow_net,
+                allow_env,
+                allow_process,
+            };
+            cmd::run::execute(&file, cache, cache_dir, plugins_dirs, watch, permissions, &args)
+                .await?;
         }
 
         cmd::Commands::Build {
@@ -130,6 +145,14 @@ async fn main() -> Result<()> {
             use clap::CommandFactory;
             let mut cmd = cmd::Cli::command();
             clap_complete::generate(shell, &mut cmd, "jsraft", &mut std::io::stdout());
+        }
+
+        cmd::Commands::Doctor => {
+            cmd::doctor::execute().await?;
+        }
+
+        cmd::Commands::Clean { all } => {
+            cmd::clean::execute(all).await?;
         }
     }
 

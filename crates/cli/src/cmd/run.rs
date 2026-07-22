@@ -1,10 +1,19 @@
 use anyhow::Result;
 use jsraft_core::watcher::FileWatcher;
-use jsraft_core::{JsRuntime, RuntimeConfig};
+use jsraft_core::{JsRuntime, RuntimeConfig, RuntimePermissions};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tracing::{error, info};
+
+pub struct PermissionFlags {
+    pub secure: bool,
+    pub allow_read: bool,
+    pub allow_write: bool,
+    pub allow_net: bool,
+    pub allow_env: bool,
+    pub allow_process: bool,
+}
 
 pub async fn execute(
     file: &Path,
@@ -12,16 +21,19 @@ pub async fn execute(
     cache_dir: Option<PathBuf>,
     plugins_dirs: Vec<PathBuf>,
     watch: bool,
+    permission_flags: PermissionFlags,
     _args: &[String],
 ) -> Result<()> {
     if !file.exists() {
         anyhow::bail!("File not found: {}", file.display());
     }
 
+    let permissions = runtime_permissions(&permission_flags);
     let config = RuntimeConfig {
         cache_enabled: cache,
         cache_dir: cache_dir.clone(),
         plugin_dirs: plugins_dirs.clone(),
+        permissions: permissions.clone(),
         ..Default::default()
     };
 
@@ -85,6 +97,7 @@ pub async fn execute(
                             cache_enabled: cache,
                             cache_dir: cache_dir.clone(),
                             plugin_dirs: plugins_dirs.clone(),
+                            permissions: permissions.clone(),
                             ..Default::default()
                         });
                         if let Err(e) = runtime.run_file(file).await {
@@ -117,4 +130,18 @@ pub async fn execute(
     }
 
     Ok(())
+}
+
+fn runtime_permissions(flags: &PermissionFlags) -> RuntimePermissions {
+    if !flags.secure {
+        return RuntimePermissions::default();
+    }
+
+    RuntimePermissions {
+        read: flags.allow_read,
+        write: flags.allow_write,
+        net: flags.allow_net,
+        env: flags.allow_env,
+        process: flags.allow_process,
+    }
 }
