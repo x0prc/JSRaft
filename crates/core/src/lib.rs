@@ -1,3 +1,24 @@
+//! Core runtime APIs for JSRaft.
+//!
+//! `jsraft-core` owns the QuickJS runtime integration, module resolution,
+//! TypeScript transformation, runtime extensions, plugin loading, bytecode
+//! snapshots, watch support, and the permission model used by privileged APIs.
+//!
+//! The primary entry point is [`JsRuntime`]:
+//!
+//! ```no_run
+//! # async fn example() -> jsraft_core::Result<()> {
+//! use jsraft_core::{JsRuntime, RuntimeConfig};
+//!
+//! let runtime = JsRuntime::new(RuntimeConfig::default());
+//! runtime.run_file(std::path::Path::new("src/index.js")).await?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! For more architecture detail, see `docs/rust-architecture.md` in the
+//! workspace root.
+
 pub mod extensions;
 pub mod io;
 pub mod module;
@@ -8,7 +29,7 @@ pub mod plugin;
 pub mod transform;
 pub mod watcher;
 
-pub use runtime::{JsRuntime, ReplSession, RuntimeConfig};
+pub use runtime::{JsRuntime, ReplSession, RuntimeConfig, RuntimePermissions};
 pub use module::ModuleLoader;
 pub use io::read_text_mmap;
 

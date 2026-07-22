@@ -32,6 +32,43 @@ pub struct RuntimeConfig {
     pub plugins_enabled: bool,
     /// Plugin directories loaded before the entry file.
     pub plugin_dirs: Vec<PathBuf>,
+    /// Runtime permissions for privileged APIs.
+    pub permissions: RuntimePermissions,
+}
+
+/// Runtime permissions for privileged APIs.
+#[derive(Debug, Clone)]
+pub struct RuntimePermissions {
+    pub read: bool,
+    pub write: bool,
+    pub net: bool,
+    pub env: bool,
+    pub process: bool,
+}
+
+impl RuntimePermissions {
+    /// Locked-down permissions suitable for `--secure` mode.
+    pub fn locked_down() -> Self {
+        Self {
+            read: false,
+            write: false,
+            net: false,
+            env: false,
+            process: false,
+        }
+    }
+}
+
+impl Default for RuntimePermissions {
+    fn default() -> Self {
+        Self {
+            read: true,
+            write: true,
+            net: true,
+            env: true,
+            process: true,
+        }
+    }
 }
 
 /// JavaScript engine backend selection.
@@ -56,6 +93,7 @@ impl Default for RuntimeConfig {
             cache_dir: None,
             plugins_enabled: true,
             plugin_dirs: Vec::new(),
+            permissions: RuntimePermissions::default(),
         }
     }
 }
@@ -128,10 +166,10 @@ impl JsRuntime {
         ctx.with(|ctx| {
             // Register built-in extensions
             crate::extensions::console::register(&ctx)?;
-            crate::extensions::fs::register(&ctx)?;
-            crate::extensions::net::register(&ctx)?;
+            crate::extensions::fs::register(&ctx, &self.config.permissions)?;
+            crate::extensions::net::register(&ctx, &self.config.permissions)?;
             crate::extensions::path::register(&ctx)?;
-            crate::extensions::process::register(&ctx)?;
+            crate::extensions::process::register(&ctx, &self.config.permissions)?;
             crate::extensions::timers::register(&ctx)?;
 
             if self.config.plugins_enabled {
@@ -287,10 +325,11 @@ impl ReplSession {
         context
             .with(|ctx| {
                 crate::extensions::console::register(&ctx)?;
-                crate::extensions::fs::register(&ctx)?;
-                crate::extensions::net::register(&ctx)?;
+                let permissions = RuntimePermissions::default();
+                crate::extensions::fs::register(&ctx, &permissions)?;
+                crate::extensions::net::register(&ctx, &permissions)?;
                 crate::extensions::path::register(&ctx)?;
-                crate::extensions::process::register(&ctx)?;
+                crate::extensions::process::register(&ctx, &permissions)?;
                 crate::extensions::timers::register(&ctx)?;
                 Ok::<(), crate::JsRaftError>(())
             })
