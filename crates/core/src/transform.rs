@@ -77,3 +77,38 @@ pub fn is_typescript_path(path: &Path) -> bool {
         Some("ts" | "tsx")
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn transform_typescript_strips_type_syntax() {
+        let source = r#"
+type User = { name: string };
+const user: User = { name: "Ada" };
+function greet(name: string): string { return `hi ${name}`; }
+console.log(greet(user.name));
+"#;
+
+        let output = transform_typescript(Path::new("index.ts"), source).unwrap();
+
+        assert!(output.contains("const user"));
+        assert!(output.contains("function greet(name)"));
+        assert!(!output.contains("type User"));
+        assert!(!output.contains(": string"));
+    }
+
+    #[test]
+    fn transform_javascript_returns_input_unchanged() {
+        let source = "const value = 1;";
+        assert_eq!(transform_typescript(Path::new("index.js"), source).unwrap(), source);
+    }
+
+    #[test]
+    fn detects_typescript_paths() {
+        assert!(is_typescript_path(Path::new("a.ts")));
+        assert!(is_typescript_path(Path::new("a.tsx")));
+        assert!(!is_typescript_path(Path::new("a.js")));
+    }
+}

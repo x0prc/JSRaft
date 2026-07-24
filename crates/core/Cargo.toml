@@ -34,3 +34,6 @@ memmap2 = { workspace = true }
 default = ["quickjs"]
 quickjs = ["rquickjs"]
 v8 = []
+
+[dev-dependencies]
+tempfile = { workspace = true }

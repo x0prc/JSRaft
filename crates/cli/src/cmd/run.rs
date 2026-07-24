@@ -132,7 +132,7 @@ pub async fn execute(
     Ok(())
 }
 
-fn runtime_permissions(flags: &PermissionFlags) -> RuntimePermissions {
+pub(crate) fn runtime_permissions(flags: &PermissionFlags) -> RuntimePermissions {
     if !flags.secure {
         return RuntimePermissions::default();
     }
@@ -143,5 +143,46 @@ fn runtime_permissions(flags: &PermissionFlags) -> RuntimePermissions {
         net: flags.allow_net,
         env: flags.allow_env,
         process: flags.allow_process,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn permissions_are_open_by_default_without_secure_mode() {
+        let permissions = runtime_permissions(&PermissionFlags {
+            secure: false,
+            allow_read: false,
+            allow_write: false,
+            allow_net: false,
+            allow_env: false,
+            allow_process: false,
+        });
+
+        assert!(permissions.read);
+        assert!(permissions.write);
+        assert!(permissions.net);
+        assert!(permissions.env);
+        assert!(permissions.process);
+    }
+
+    #[test]
+    fn secure_mode_respects_allow_flags() {
+        let permissions = runtime_permissions(&PermissionFlags {
+            secure: true,
+            allow_read: true,
+            allow_write: false,
+            allow_net: true,
+            allow_env: false,
+            allow_process: true,
+        });
+
+        assert!(permissions.read);
+        assert!(!permissions.write);
+        assert!(permissions.net);
+        assert!(!permissions.env);
+        assert!(permissions.process);
     }
 }

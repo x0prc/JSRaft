@@ -423,3 +423,92 @@ fn quoted_specifier(input: &str) -> Option<String> {
 
     None
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn resolves_package_json_entry_fields() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let package = root.join("node_modules/pkg");
+        fs::create_dir_all(package.join("dist")).unwrap();
+        fs::write(
+            package.join("package.json"),
+            r#"{"module":"./dist/module.js","main":"./main.js"}"#,
+        )
+        .unwrap();
+        fs::write(package.join("dist/module.js"), "export const value = 'module';").unwrap();
+        fs::write(package.join("main.js"), "export const value = 'main';").unwrap();
+        fs::write(root.join("app.js"), "import { value } from 'pkg';").unwrap();
+
+        let loader = ModuleLoader::new(root.to_path_buf());
+        let resolved = loader.resolve("pkg", Some(&root.join("app.js"))).unwrap();
+
+        assert_eq!(resolved, package.join("dist/module.js"));
+    }
+
+    #[test]
+    fn resolves_package_exports_and_subpaths() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let package = root.join("node_modules/pkg");
+        fs::create_dir_all(package.join("lib")).unwrap();
+        fs::write(
+            package.join("package.json"),
+            r#"{"exports":{".":{"import":"./lib/index.js"},"./feature":"./lib/feature.js"}}"#,
+        )
+        .unwrap();
+        fs::write(package.join("lib/index.js"), "export const root = true;").unwrap();
+        fs::write(package.join("lib/feature.js"), "export const feature = true;").unwrap();
+        fs::write(root.join("app.js"), "import { root } from 'pkg';").unwrap();
+
+        let loader = ModuleLoader::new(root.to_path_buf());
+
+        assert_eq!(
+            loader.resolve("pkg", Some(&root.join("app.js"))).unwrap(),
+            package.join("lib/index.js")
+        );
+        assert_eq!(
+            loader.resolve("pkg/feature", Some(&root.join("app.js"))).unwrap(),
+            package.join("lib/feature.js")
+        );
+    }
+
+    #[test]
+    fn resolves_scoped_package_main() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let package = root.join("node_modules/@scope/pkg");
+        fs::create_dir_all(&package).unwrap();
+        fs::write(package.join("package.json"), r#"{"main":"./index.js"}"#).unwrap();
+        fs::write(package.join("index.js"), "export const value = true;").unwrap();
+        fs::write(root.join("app.js"), "import { value } from '@scope/pkg';").unwrap();
+
+        let loader = ModuleLoader::new(root.to_path_buf());
+        let resolved = loader.resolve("@scope/pkg", Some(&root.join("app.js"))).unwrap();
+
+        assert_eq!(resolved, package.join("index.js"));
+    }
+
+    #[test]
+    fn load_graph_transforms_typescript_sources() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        fs::write(root.join("util.ts"), "export const value: number = 7;\n").unwrap();
+        fs::write(
+            root.join("main.ts"),
+            "import { value } from './util.ts';\nconst result: number = value;\n",
+        )
+        .unwrap();
+
+        let loader = ModuleLoader::new(root.to_path_buf());
+        let modules = loader.load_graph(Path::new("main.ts")).unwrap();
+
+        assert_eq!(modules.len(), 2);
+        assert!(modules.iter().any(|module| module.path.ends_with("util.ts")));
+        assert!(modules.iter().all(|module| !module.source.contains(": number")));
+    }
+}

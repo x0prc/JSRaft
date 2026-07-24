@@ -53,3 +53,26 @@ fn cleanup_empty_parent(parent: Option<PathBuf>) -> Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn remove_path_removes_cache_and_empty_jsraft_dir() {
+        let temp = tempfile::tempdir().unwrap();
+        let cache = temp.path().join(".jsraft/cache");
+        std::fs::create_dir_all(&cache).unwrap();
+        std::fs::write(cache.join("bytecode.bin"), b"cache").unwrap();
+
+        assert!(remove_path(&cache).unwrap());
+        assert!(!cache.exists());
+        assert!(!temp.path().join(".jsraft").exists());
+    }
+
+    #[test]
+    fn remove_path_returns_false_for_missing_path() {
+        let temp = tempfile::tempdir().unwrap();
+        assert!(!remove_path(&temp.path().join("missing")).unwrap());
+    }
+}
