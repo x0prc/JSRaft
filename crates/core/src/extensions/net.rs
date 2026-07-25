@@ -10,33 +10,30 @@ pub fn register(ctx: &Ctx<'_>, permissions: &RuntimePermissions) -> crate::Resul
 
     // Global fetch (basic implementation)
     let allow_net = permissions.net;
-    let fetch = Function::new(
-        ctx.clone(),
-        move |url: String| -> String {
-            if !allow_net {
-                return "{\"error\":\"Permission denied: net access requires --allow-net\"}".into();
-            }
-            // Synchronous fetch using reqwest for MVP
-            let client = reqwest::blocking::Client::new();
+    let fetch = Function::new(ctx.clone(), move |url: String| -> String {
+        if !allow_net {
+            return "{\"error\":\"Permission denied: net access requires --allow-net\"}".into();
+        }
+        // Synchronous fetch using reqwest for MVP
+        let client = reqwest::blocking::Client::new();
 
-            match client.get(&url).send() {
-                Ok(response) => {
-                    let status = response.status().as_u16();
-                    match response.text() {
-                        Ok(body) => {
-                            if status >= 400 {
-                                format!("{{\"error\":\"HTTP {status}\",\"body\":\"{body}\"}}")
-                            } else {
-                                body
-                            }
+        match client.get(&url).send() {
+            Ok(response) => {
+                let status = response.status().as_u16();
+                match response.text() {
+                    Ok(body) => {
+                        if status >= 400 {
+                            format!("{{\"error\":\"HTTP {status}\",\"body\":\"{body}\"}}")
+                        } else {
+                            body
                         }
-                        Err(e) => format!("{{\"error\":\"Response read error: {e}\"}}"),
                     }
+                    Err(e) => format!("{{\"error\":\"Response read error: {e}\"}}"),
                 }
-                Err(e) => format!("{{\"error\":\"Fetch error: {e}\"}}"),
             }
-        },
-    )
+            Err(e) => format!("{{\"error\":\"Fetch error: {e}\"}}"),
+        }
+    })
     .map_err(|e| crate::JsRaftError::Extension(format!("Failed to create fetch: {e}")))?;
 
     globals
@@ -44,7 +41,7 @@ pub fn register(ctx: &Ctx<'_>, permissions: &RuntimePermissions) -> crate::Resul
         .map_err(|e| crate::JsRaftError::Extension(format!("Failed to set fetch: {e}")))?;
 
     let serve = Function::new(ctx.clone(), serve_native)
-    .map_err(|e| crate::JsRaftError::Extension(format!("Failed to create serve: {e}")))?;
+        .map_err(|e| crate::JsRaftError::Extension(format!("Failed to create serve: {e}")))?;
 
     globals
         .set("__jsraft_serve", serve)
@@ -79,9 +76,9 @@ pub fn register(ctx: &Ctx<'_>, permissions: &RuntimePermissions) -> crate::Resul
         };
     "#
     };
-    let _: Value = ctx
-        .eval(bootstrap.as_bytes())
-        .map_err(|e| crate::JsRaftError::Extension(format!("Failed to register serve APIs: {e}")))?;
+    let _: Value = ctx.eval(bootstrap.as_bytes()).map_err(|e| {
+        crate::JsRaftError::Extension(format!("Failed to register serve APIs: {e}"))
+    })?;
 
     Ok(())
 }
@@ -196,15 +193,9 @@ fn response_from_js(value: Value<'_>) -> rquickjs::Result<HttpResponse> {
         });
     }
 
-    let object = value
-        .into_object()
-        .ok_or_else(|| {
-            rquickjs::Error::new_from_js_message(
-                "value",
-                "response",
-                "expected string or object",
-            )
-        })?;
+    let object = value.into_object().ok_or_else(|| {
+        rquickjs::Error::new_from_js_message("value", "response", "expected string or object")
+    })?;
 
     let status = if object.contains_key("status")? {
         object.get::<_, u16>("status")?
@@ -219,10 +210,17 @@ fn response_from_js(value: Value<'_>) -> rquickjs::Result<HttpResponse> {
 
     let mut headers = BTreeMap::new();
     if object.contains_key("contentType")? {
-        headers.insert("content-type".to_string(), object.get::<_, String>("contentType")?);
+        headers.insert(
+            "content-type".to_string(),
+            object.get::<_, String>("contentType")?,
+        );
     }
 
-    Ok(HttpResponse { status, headers, body })
+    Ok(HttpResponse {
+        status,
+        headers,
+        body,
+    })
 }
 
 fn write_response(

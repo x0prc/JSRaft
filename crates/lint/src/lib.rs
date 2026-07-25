@@ -2,7 +2,7 @@ pub mod config;
 pub mod rules;
 
 pub use config::LintConfig;
-pub use rules::{LintResult, LintError, LintWarning};
+pub use rules::{LintError, LintResult, LintWarning};
 
 use anyhow::{Context, Result};
 use std::path::Path;

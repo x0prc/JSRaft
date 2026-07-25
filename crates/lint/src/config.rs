@@ -33,22 +33,14 @@ impl Default for LintConfig {
         Self {
             rules: HashMap::new(),
             categories: default_categories(),
-            ignore: vec![
-                "node_modules".into(),
-                "dist".into(),
-                ".jsraft".into(),
-            ],
+            ignore: vec!["node_modules".into(), "dist".into(), ".jsraft".into()],
             max_warnings: 100,
         }
     }
 }
 
 fn default_categories() -> Vec<String> {
-    vec![
-        "correctness".into(),
-        "suspicious".into(),
-        "pedantic".into(),
-    ]
+    vec!["correctness".into(), "suspicious".into(), "pedantic".into()]
 }
 
 fn default_max_warnings() -> usize {

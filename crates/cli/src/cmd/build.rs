@@ -34,9 +34,7 @@ pub async fn execute(
 
     println!(
         "Bundle complete: {} files, {} bytes, {}ms",
-        result.stats.files_included,
-        result.stats.total_size,
-        result.stats.duration_ms
+        result.stats.files_included, result.stats.total_size, result.stats.duration_ms
     );
 
     println!("Output: {}", output_path.display());

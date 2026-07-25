@@ -31,8 +31,7 @@ impl Lockfile {
             });
         }
 
-        let content = std::fs::read_to_string(&path)
-            .context("Failed to read jsraft.lock")?;
+        let content = std::fs::read_to_string(&path).context("Failed to read jsraft.lock")?;
 
         let lockfile: Self =
             serde_json::from_str(&content).context("Failed to parse jsraft.lock")?;

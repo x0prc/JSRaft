@@ -94,9 +94,14 @@ impl FileWatcher {
                     ) {
                         for path in event.paths {
                             // Only track files we're watching
-                            if self.watched.contains(&path) || path.extension().is_some_and(|e| {
-                                matches!(e.to_str(), Some("js" | "ts" | "jsx" | "tsx" | "mjs" | "cjs"))
-                            }) {
+                            if self.watched.contains(&path)
+                                || path.extension().is_some_and(|e| {
+                                    matches!(
+                                        e.to_str(),
+                                        Some("js" | "ts" | "jsx" | "tsx" | "mjs" | "cjs")
+                                    )
+                                })
+                            {
                                 changed.insert(path);
                             }
                         }

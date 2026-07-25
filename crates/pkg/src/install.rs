@@ -4,11 +4,11 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tracing::info;
 
-use crate::registry::{NpmPackage, NpmRegistry};
 use crate::lockfile::{Lockfile, LockfileEntry};
+use crate::registry::{NpmPackage, NpmRegistry};
 
 /// Package manager configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PkgConfig {
     /// Dependencies (name -> version requirement).
     #[serde(default)]
@@ -23,17 +23,6 @@ pub struct PkgConfig {
 
     /// Package version.
     pub version: Option<String>,
-}
-
-impl Default for PkgConfig {
-    fn default() -> Self {
-        Self {
-            dependencies: HashMap::new(),
-            dev_dependencies: HashMap::new(),
-            name: None,
-            version: None,
-        }
-    }
 }
 
 impl PkgConfig {
@@ -159,7 +148,9 @@ impl PackageManager {
             .ok_or_else(|| anyhow::anyhow!("Missing metadata for {name}@{resolved_version}"))?;
         let tarball_url = version_meta.dist.tarball.as_str();
 
-        let tarball_path = self.cache_dir.join(format!("{name}@{resolved_version}.tgz"));
+        let tarball_path = self
+            .cache_dir
+            .join(format!("{name}@{resolved_version}.tgz"));
 
         self.registry
             .download_tarball(tarball_url, &tarball_path)
@@ -190,7 +181,7 @@ impl PackageManager {
 
         // Try prefix match (e.g., "^1.0.0" matches "1.x.x")
         for version in versions.iter().rev() {
-            if version.starts_with(requirement.trim_start_matches(|c: char| c == '^' || c == '~')) {
+            if version.starts_with(requirement.trim_start_matches(['^', '~'])) {
                 return Ok(version.to_string());
             }
         }

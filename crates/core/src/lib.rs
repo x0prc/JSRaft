@@ -23,15 +23,15 @@ pub mod extensions;
 pub mod io;
 pub mod module;
 pub mod ops;
+pub mod plugin;
 pub mod runtime;
 pub mod snapshot;
-pub mod plugin;
 pub mod transform;
 pub mod watcher;
 
-pub use runtime::{JsRuntime, ReplSession, RuntimeConfig, RuntimePermissions};
-pub use module::ModuleLoader;
 pub use io::read_text_mmap;
+pub use module::ModuleLoader;
+pub use runtime::{JsRuntime, ReplSession, RuntimeConfig, RuntimePermissions};
 
 use thiserror::Error;
 

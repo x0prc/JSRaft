@@ -54,10 +54,7 @@ impl Bundler {
             ..Default::default()
         });
 
-        Self {
-            config,
-            resolver,
-        }
+        Self { config, resolver }
     }
 
     /// Bundle the project.
@@ -83,14 +80,9 @@ impl Bundler {
             debug!("Processing module: {}", path.display());
 
             // Wrap in a module scope for tree shaking
-            let rel_path = path
-                .strip_prefix(root)
-                .unwrap_or(path)
-                .to_string_lossy();
+            let rel_path = path.strip_prefix(root).unwrap_or(path).to_string_lossy();
 
-            bundled_parts.push(format!(
-                "// Module: {rel_path}\n{source}"
-            ));
+            bundled_parts.push(format!("// Module: {rel_path}\n{source}"));
         }
 
         // Combine all parts
@@ -117,9 +109,7 @@ impl Bundler {
 
         info!(
             "Bundle complete: {} files, {} bytes, {}ms",
-            stats.files_included,
-            stats.total_size,
-            stats.duration_ms
+            stats.files_included, stats.total_size, stats.duration_ms
         );
 
         Ok(BundleResult {
@@ -131,20 +121,12 @@ impl Bundler {
 
     /// Write bundle output to disk.
     pub fn write_output(&self, result: &BundleResult, root: &Path) -> Result<PathBuf> {
-        let outdir = self
-            .config
-            .outdir
-            .as_deref()
-            .unwrap_or("dist");
+        let outdir = self.config.outdir.as_deref().unwrap_or("dist");
 
         let out_path = root.join(outdir);
         std::fs::create_dir_all(&out_path)?;
 
-        let filename = self
-            .config
-            .outfile
-            .as_deref()
-            .unwrap_or("bundle.js");
+        let filename = self.config.outfile.as_deref().unwrap_or("bundle.js");
 
         let output_file = out_path.join(filename);
 
@@ -181,8 +163,8 @@ impl Bundler {
         }
         visited.insert(canonical.clone());
 
-        let source = read_text_mmap(path)
-            .with_context(|| format!("Failed to read: {}", path.display()))?;
+        let source =
+            read_text_mmap(path).with_context(|| format!("Failed to read: {}", path.display()))?;
 
         modules.insert(canonical.clone(), source.clone());
 
@@ -194,10 +176,9 @@ impl Bundler {
                 continue;
             }
 
-            let resolved = self.resolver.resolve(
-                path.parent().unwrap_or(root),
-                &import_path,
-            );
+            let resolved = self
+                .resolver
+                .resolve(path.parent().unwrap_or(root), &import_path);
 
             if let Ok(resolved_path) = resolved {
                 let resolved_path = resolved_path.full_path();

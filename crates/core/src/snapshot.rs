@@ -135,9 +135,8 @@ impl BytecodeCache {
 /// `JS_WriteObject` to serialize the compiled bytecode to bytes.
 pub fn compile_to_bytecode<'js>(ctx: &Ctx<'js>, source: &str, filename: &str) -> Result<Vec<u8>> {
     let raw_ctx = ctx.as_raw().as_ptr();
-    let c_source = CString::new(source).map_err(|e| {
-        JsRaftError::Runtime(format!("Failed to create C string for source: {e}"))
-    })?;
+    let c_source = CString::new(source)
+        .map_err(|e| JsRaftError::Runtime(format!("Failed to create C string for source: {e}")))?;
     let c_filename = CString::new(filename).map_err(|e| {
         JsRaftError::Runtime(format!("Failed to create C string for filename: {e}"))
     })?;

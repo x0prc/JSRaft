@@ -40,8 +40,16 @@ async fn main() -> Result<()> {
                 allow_env,
                 allow_process,
             };
-            cmd::run::execute(&file, cache, cache_dir, plugins_dirs, watch, permissions, &args)
-                .await?;
+            cmd::run::execute(
+                &file,
+                cache,
+                cache_dir,
+                plugins_dirs,
+                watch,
+                permissions,
+                &args,
+            )
+            .await?;
         }
 
         cmd::Commands::Build {
@@ -51,8 +59,14 @@ async fn main() -> Result<()> {
             minify,
             sourcemap,
         } => {
-            cmd::build::execute(entry.as_deref(), outdir.as_deref(), &format, minify, sourcemap)
-                .await?;
+            cmd::build::execute(
+                entry.as_deref(),
+                outdir.as_deref(),
+                &format,
+                minify,
+                sourcemap,
+            )
+            .await?;
         }
 
         cmd::Commands::Lint {

@@ -153,6 +153,12 @@ impl NpmRegistry {
     }
 }
 
+impl Default for NpmRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Search result from npm.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchResult {

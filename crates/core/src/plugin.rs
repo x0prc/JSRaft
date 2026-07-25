@@ -62,17 +62,18 @@ impl PluginManager {
         let mut loaded = Vec::new();
 
         for plugin in plugins {
-            info!("Loading plugin: {} ({})", plugin.name, plugin.path.display());
+            info!(
+                "Loading plugin: {} ({})",
+                plugin.name,
+                plugin.path.display()
+            );
             let source = plugin_source(&plugin);
-            let _: Value = ctx
-                .eval(source.as_bytes())
-                .catch(ctx)
-                .map_err(|e| {
-                    JsRaftError::Extension(format!(
-                        "Plugin {} failed to load: {e}",
-                        plugin.path.display()
-                    ))
-                })?;
+            let _: Value = ctx.eval(source.as_bytes()).catch(ctx).map_err(|e| {
+                JsRaftError::Extension(format!(
+                    "Plugin {} failed to load: {e}",
+                    plugin.path.display()
+                ))
+            })?;
             loaded.push(plugin.name);
         }
 
@@ -97,9 +98,9 @@ fn register_plugin_api(ctx: &Ctx<'_>) -> Result<()> {
 
 fn is_plugin_file(path: &Path) -> bool {
     path.is_file()
-        && path.extension().is_some_and(|ext| {
-            matches!(ext.to_str(), Some("js" | "mjs" | "cjs"))
-        })
+        && path
+            .extension()
+            .is_some_and(|ext| matches!(ext.to_str(), Some("js" | "mjs" | "cjs")))
 }
 
 fn plugin_source(plugin: &Plugin) -> String {

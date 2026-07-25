@@ -102,7 +102,10 @@ console.log(greet(user.name));
     #[test]
     fn transform_javascript_returns_input_unchanged() {
         let source = "const value = 1;";
-        assert_eq!(transform_typescript(Path::new("index.js"), source).unwrap(), source);
+        assert_eq!(
+            transform_typescript(Path::new("index.js"), source).unwrap(),
+            source
+        );
     }
 
     #[test]

@@ -1,7 +1,7 @@
 use anyhow::Result;
+use glob::glob;
 use jsraft_fmt::{FmtConfig, Formatter};
 use std::path::Path;
-use glob::glob;
 
 pub async fn execute(paths: &[&Path], check: bool, stdout: bool) -> Result<()> {
     let config = FmtConfig::default();
@@ -9,7 +9,7 @@ pub async fn execute(paths: &[&Path], check: bool, stdout: bool) -> Result<()> {
 
     let mut all_files = Vec::new();
 
-    for path in paths.iter().copied() {
+    for path in paths {
         if path.is_dir() {
             let pattern = format!("{}/**/*.{{js,jsx,ts,tsx,mjs,cjs}}", path.display());
             for entry in glob(&pattern)? {

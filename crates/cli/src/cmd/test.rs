@@ -205,7 +205,10 @@ fn strip_esm_syntax(source: &str) -> String {
     let mut output = String::with_capacity(source.len());
     for line in source.lines() {
         let trimmed = line.trim_start();
-        if trimmed.starts_with("import ") || trimmed.starts_with("export {") || trimmed.starts_with("export *") {
+        if trimmed.starts_with("import ")
+            || trimmed.starts_with("export {")
+            || trimmed.starts_with("export *")
+        {
             output.push('\n');
             continue;
         }

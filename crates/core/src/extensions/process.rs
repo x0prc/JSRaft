@@ -5,8 +5,9 @@ use rquickjs::{Ctx, Function};
 pub fn register(ctx: &Ctx<'_>, permissions: &RuntimePermissions) -> crate::Result<()> {
     let globals = ctx.globals();
 
-    let process = rquickjs::Object::new(ctx.clone())
-        .map_err(|e| crate::JsRaftError::Extension(format!("Failed to create process object: {e}")))?;
+    let process = rquickjs::Object::new(ctx.clone()).map_err(|e| {
+        crate::JsRaftError::Extension(format!("Failed to create process object: {e}"))
+    })?;
 
     // process.env -> object
     let env_obj = rquickjs::Object::new(ctx.clone())
@@ -14,9 +15,9 @@ pub fn register(ctx: &Ctx<'_>, permissions: &RuntimePermissions) -> crate::Resul
 
     if permissions.env {
         for (key, value) in std::env::vars() {
-            env_obj
-                .set(&key, value)
-                .map_err(|e| crate::JsRaftError::Extension(format!("Failed to set env var: {e}")))?;
+            env_obj.set(&key, value).map_err(|e| {
+                crate::JsRaftError::Extension(format!("Failed to set env var: {e}"))
+            })?;
         }
     }
 

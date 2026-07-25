@@ -440,7 +440,11 @@ mod tests {
             r#"{"module":"./dist/module.js","main":"./main.js"}"#,
         )
         .unwrap();
-        fs::write(package.join("dist/module.js"), "export const value = 'module';").unwrap();
+        fs::write(
+            package.join("dist/module.js"),
+            "export const value = 'module';",
+        )
+        .unwrap();
         fs::write(package.join("main.js"), "export const value = 'main';").unwrap();
         fs::write(root.join("app.js"), "import { value } from 'pkg';").unwrap();
 
@@ -462,7 +466,11 @@ mod tests {
         )
         .unwrap();
         fs::write(package.join("lib/index.js"), "export const root = true;").unwrap();
-        fs::write(package.join("lib/feature.js"), "export const feature = true;").unwrap();
+        fs::write(
+            package.join("lib/feature.js"),
+            "export const feature = true;",
+        )
+        .unwrap();
         fs::write(root.join("app.js"), "import { root } from 'pkg';").unwrap();
 
         let loader = ModuleLoader::new(root.to_path_buf());
@@ -472,7 +480,9 @@ mod tests {
             package.join("lib/index.js")
         );
         assert_eq!(
-            loader.resolve("pkg/feature", Some(&root.join("app.js"))).unwrap(),
+            loader
+                .resolve("pkg/feature", Some(&root.join("app.js")))
+                .unwrap(),
             package.join("lib/feature.js")
         );
     }
@@ -488,7 +498,9 @@ mod tests {
         fs::write(root.join("app.js"), "import { value } from '@scope/pkg';").unwrap();
 
         let loader = ModuleLoader::new(root.to_path_buf());
-        let resolved = loader.resolve("@scope/pkg", Some(&root.join("app.js"))).unwrap();
+        let resolved = loader
+            .resolve("@scope/pkg", Some(&root.join("app.js")))
+            .unwrap();
 
         assert_eq!(resolved, package.join("index.js"));
     }
@@ -508,7 +520,11 @@ mod tests {
         let modules = loader.load_graph(Path::new("main.ts")).unwrap();
 
         assert_eq!(modules.len(), 2);
-        assert!(modules.iter().any(|module| module.path.ends_with("util.ts")));
-        assert!(modules.iter().all(|module| !module.source.contains(": number")));
+        assert!(modules
+            .iter()
+            .any(|module| module.path.ends_with("util.ts")));
+        assert!(modules
+            .iter()
+            .all(|module| !module.source.contains(": number")));
     }
 }
