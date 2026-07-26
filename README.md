@@ -1,5 +1,7 @@
 # JSRaft
 
+[![CI](https://github.com/x0prc/JSRaft/actions/workflows/ci.yml/badge.svg)](https://github.com/x0prc/JSRaft/actions/workflows/ci.yml)
+
 A minimal JavaScript runtime + compiler toolchain + package ecosystem, built in Rust.
 
 ## Features
